@@ -89,8 +89,10 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     expect(await screen.findByText('Your points')).toBeInTheDocument()
-    expect(await screen.findByText('42')).toBeInTheDocument()
+    expect((await screen.findAllByText('42')).length).toBeGreaterThan(0)
     expect(screen.getByText('Open ledger')).toBeInTheDocument()
+    expect(await screen.findByText('Stats snapshot')).toBeInTheDocument()
+    expect(screen.getByText('Open stats')).toBeInTheDocument()
   })
 
   it('displays the journal streak widget with shared entries', async () => {

@@ -1,6 +1,12 @@
+import type { ReactNode } from 'react'
+import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
-import { formatPercent, type StatsRangeDays } from '@/features/stats/statsLogic'
+import {
+  formatPercent,
+  type StatsGranularity,
+  type StatsRangeDays,
+} from '@/features/stats/statsLogic'
 import { useStatsData } from '@/features/stats/useStatsData'
 
 function SummaryCard(props: { label: string; value: string; hint?: string }) {
@@ -13,24 +19,29 @@ function SummaryCard(props: { label: string; value: string; hint?: string }) {
   )
 }
 
+function EmptyTip(props: { children: ReactNode }) {
+  return <p className="mt-4 text-sm text-stone-500">{props.children}</p>
+}
+
 function BarChart(props: {
   title: string
   subtitle?: string
   series: Array<{ label: string; values: Array<{ key: string; value: number; color: string }> }>
-  emptyLabel?: string
+  emptyTip?: ReactNode
 }) {
   const max = Math.max(
     1,
     ...props.series.flatMap((s) => s.values.map((v) => v.value)),
   )
   const showEvery = props.series.length > 14 ? Math.ceil(props.series.length / 7) : 1
+  const empty = props.series.every((s) => s.values.every((v) => v.value === 0))
 
   return (
     <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
       <h3 className="text-sm font-medium text-stone-200">{props.title}</h3>
       {props.subtitle ? <p className="mt-1 text-xs text-stone-500">{props.subtitle}</p> : null}
-      {props.series.every((s) => s.values.every((v) => v.value === 0)) ? (
-        <p className="mt-4 text-sm text-stone-500">{props.emptyLabel ?? 'No data in this range.'}</p>
+      {empty ? (
+        <EmptyTip>{props.emptyTip ?? 'No data in this range.'}</EmptyTip>
       ) : (
         <div className="mt-4 flex h-40 items-end gap-1">
           {props.series.map((bucket, idx) => (
@@ -65,52 +76,68 @@ function BarChart(props: {
 function BreakdownBars(props: {
   title: string
   items: Array<{ label: string; value: number; color: string }>
+  emptyTip?: ReactNode
 }) {
   const max = Math.max(1, ...props.items.map((i) => i.value))
+  const empty = props.items.every((i) => i.value === 0)
   return (
     <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
       <h3 className="text-sm font-medium text-stone-200">{props.title}</h3>
-      <ul className="mt-4 space-y-3">
-        {props.items.map((item) => (
-          <li key={item.label}>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-stone-300">{item.label}</span>
-              <span className="text-stone-100">{item.value}</span>
-            </div>
-            <div className="mt-1 h-2 overflow-hidden rounded bg-stone-800">
-              <div
-                className="h-full rounded"
-                style={{
-                  width: `${(item.value / max) * 100}%`,
-                  backgroundColor: item.color,
-                }}
-              />
-            </div>
-          </li>
-        ))}
-      </ul>
+      {empty ? (
+        <EmptyTip>{props.emptyTip ?? 'No data in this range.'}</EmptyTip>
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {props.items.map((item) => (
+            <li key={item.label}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-stone-300">{item.label}</span>
+                <span className="text-stone-100">{item.value}</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded bg-stone-800">
+                <div
+                  className="h-full rounded"
+                  style={{
+                    width: `${(item.value / max) * 100}%`,
+                    backgroundColor: item.color,
+                  }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
 
 const RANGES: StatsRangeDays[] = [7, 30, 90]
+const GRANULARITIES: StatsGranularity[] = ['day', 'week', 'month']
 
 export function StatsPage() {
   const { user } = useAuth()
   const { activeRelationship } = useRelationship()
+  const members = activeRelationship?.members ?? []
   const {
     rangeDays,
     setRangeDays,
+    granularity,
+    setGranularity,
     mineOnly,
     setMineOnly,
     loading,
     habitStats,
+    habitChartDays,
     pointsStats,
+    pointsChartDays,
     catalogBreakdown,
     journalStats,
+    journalChartDays,
     journalStreak,
-    ruleViolationTrend,
-  } = useStatsData(activeRelationship?.id, user?.id)
+    ruleChartDays,
+    perHabit,
+    memberComparisons,
+    csv,
+  } = useStatsData(activeRelationship?.id, user?.id, members)
 
   if (!activeRelationship || !user) {
     return (
@@ -121,14 +148,36 @@ export function StatsPage() {
     )
   }
 
+  function downloadCsv() {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sub-rosa-stats-${rangeDays}d.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const grainLabel =
+    granularity === 'day' ? 'per day' : granularity === 'week' ? 'per week' : 'per month'
+
   return (
     <section className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight text-stone-50">Stats</h2>
-        <p className="mt-2 text-stone-400">
-          Completion rates, points trends, rewards & punishments, and journaling activity for{' '}
-          {activeRelationship.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-stone-50">Stats</h2>
+          <p className="mt-2 text-stone-400">
+            Completion rates, points trends, rewards & punishments, and journaling activity for{' '}
+            {activeRelationship.name}.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:border-stone-400"
+          onClick={downloadCsv}
+        >
+          Export CSV
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -146,6 +195,23 @@ export function StatsPage() {
               onClick={() => setRangeDays(days)}
             >
               {days}d
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 rounded-md border border-stone-700 p-1">
+          {GRANULARITIES.map((g) => (
+            <button
+              key={g}
+              type="button"
+              className={[
+                'rounded px-2.5 py-1 text-xs capitalize',
+                granularity === g
+                  ? 'bg-stone-800 text-rose-300'
+                  : 'text-stone-400 hover:text-stone-200',
+              ].join(' ')}
+              onClick={() => setGranularity(g)}
+            >
+              {g}
             </button>
           ))}
         </div>
@@ -188,26 +254,42 @@ export function StatsPage() {
 
           <BarChart
             title="Habit completions"
-            subtitle="Completed vs expected due slots per day"
-            series={habitStats.days.map((d) => ({
+            subtitle={`Completed vs expected due slots (${grainLabel})`}
+            series={habitChartDays.map((d) => ({
               label: d.label,
               values: [
                 { key: 'completed', value: d.completed, color: '#fb7185' },
                 { key: 'expected', value: d.expected, color: '#44403c' },
               ],
             }))}
+            emptyTip={
+              <>
+                No habit activity yet.{' '}
+                <NavLink to="/habits" className="text-rose-400 hover:text-rose-300">
+                  Add a habit
+                </NavLink>
+              </>
+            }
           />
 
           <BarChart
             title="Points earned vs spent"
-            subtitle="Daily ledger totals"
-            series={pointsStats.days.map((d) => ({
+            subtitle={`Ledger totals (${grainLabel})`}
+            series={pointsChartDays.map((d) => ({
               label: d.label,
               values: [
                 { key: 'earned', value: d.earned, color: '#34d399' },
                 { key: 'spent', value: d.spent, color: '#f43f5e' },
               ],
             }))}
+            emptyTip={
+              <>
+                No points activity yet.{' '}
+                <NavLink to="/points" className="text-rose-400 hover:text-rose-300">
+                  Open points
+                </NavLink>
+              </>
+            }
           />
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -231,26 +313,136 @@ export function StatsPage() {
                   color: '#a78bfa',
                 },
               ]}
+              emptyTip={
+                <>
+                  Nothing applied yet.{' '}
+                  <NavLink to="/rewards" className="text-rose-400 hover:text-rose-300">
+                    Open rewards
+                  </NavLink>
+                </>
+              }
             />
             <BarChart
               title="Journaling activity"
-              subtitle="Entries per day"
-              series={journalStats.days.map((d) => ({
+              subtitle={`Entries (${grainLabel})`}
+              series={journalChartDays.map((d) => ({
                 label: d.label,
                 values: [{ key: 'entries', value: d.entries, color: '#38bdf8' }],
               }))}
+              emptyTip={
+                <>
+                  No journal entries in this range.{' '}
+                  <NavLink to="/journal" className="text-rose-400 hover:text-rose-300">
+                    Write an entry
+                  </NavLink>
+                </>
+              }
             />
           </div>
 
           <BarChart
             title="Rule violation trend"
-            subtitle="Punishments sourced from rule violations"
-            series={ruleViolationTrend.map((d) => ({
+            subtitle={`Punishments from rule violations (${grainLabel})`}
+            series={ruleChartDays.map((d) => ({
               label: d.label,
               values: [{ key: 'violations', value: d.count, color: '#fbbf24' }],
             }))}
-            emptyLabel="No rule violations in this range."
+            emptyTip={
+              <>
+                No rule violations in this range.{' '}
+                <NavLink to="/rules" className="text-rose-400 hover:text-rose-300">
+                  Review rules
+                </NavLink>
+              </>
+            }
           />
+
+          <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
+            <h3 className="text-sm font-medium text-stone-200">Per-habit breakdown</h3>
+            {perHabit.length === 0 ? (
+              <EmptyTip>
+                No active habits.{' '}
+                <NavLink to="/habits" className="text-rose-400 hover:text-rose-300">
+                  Add a habit
+                </NavLink>
+              </EmptyTip>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs uppercase tracking-wide text-stone-500">
+                    <tr>
+                      <th className="pb-2 pr-3 font-medium">Habit</th>
+                      <th className="pb-2 pr-3 font-medium">Assignee</th>
+                      <th className="pb-2 pr-3 font-medium">Done</th>
+                      <th className="pb-2 pr-3 font-medium">Expected</th>
+                      <th className="pb-2 font-medium">Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {perHabit.map((row) => {
+                      const assignee = members.find((m) => m.userId === row.assignedToUserId)
+                      return (
+                        <tr key={row.habitId} className="border-t border-stone-800">
+                          <td className="py-2 pr-3 text-stone-100">{row.title}</td>
+                          <td className="py-2 pr-3 text-stone-400">
+                            {assignee?.displayName ?? 'Unknown'}
+                          </td>
+                          <td className="py-2 pr-3 text-stone-300">{row.completed}</td>
+                          <td className="py-2 pr-3 text-stone-300">{row.expected}</td>
+                          <td className="py-2 text-stone-100">{formatPercent(row.rate)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {!mineOnly && members.length > 1 ? (
+            <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
+              <h3 className="text-sm font-medium text-stone-200">Members in this relationship</h3>
+              <p className="mt-1 text-xs text-stone-500">
+                Comparison is limited to partners in {activeRelationship.name}.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {memberComparisons.map((m) => (
+                  <div
+                    key={m.userId}
+                    className={[
+                      'rounded-md border p-3',
+                      m.userId === user.id
+                        ? 'border-rose-800 bg-rose-950/20'
+                        : 'border-stone-700 bg-stone-950/30',
+                    ].join(' ')}
+                  >
+                    <p className="text-sm font-medium text-stone-100">
+                      {m.displayName}
+                      {m.userId === user.id ? ' (you)' : ''}
+                    </p>
+                    <dl className="mt-2 space-y-1 text-xs text-stone-400">
+                      <div className="flex justify-between gap-2">
+                        <dt>Habit rate</dt>
+                        <dd className="text-stone-200">{formatPercent(m.habitRate)}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt>Points net</dt>
+                        <dd className="text-stone-200">{m.pointsNet}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt>Journal entries</dt>
+                        <dd className="text-stone-200">{m.journalEntries}</dd>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <dt>Journal streak</dt>
+                        <dd className="text-stone-200">{m.journalStreak}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </>
       )}
     </section>

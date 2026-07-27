@@ -3,10 +3,14 @@ import {
   buildCatalogBreakdown,
   buildHabitStats,
   buildJournalStats,
+  buildMemberComparisons,
+  buildPerHabitBreakdown,
   buildPointsStats,
   buildRuleViolationTrend,
+  buildStatsCsv,
   enumerateDays,
   formatPercent,
+  rollupHabitDays,
 } from '@/features/stats/statsLogic'
 import type {
   CatalogHistoryEntry,
@@ -174,5 +178,103 @@ describe('statsLogic', () => {
     expect(stats.totalEntries).toBe(2)
     expect(stats.activeDays).toBe(1)
     expect(stats.days[6].entries).toBe(2)
+  })
+
+  it('rolls up habit days into weeks', () => {
+    const stats = buildHabitStats({
+      habits: [habit({ id: 'h1' })],
+      completions: [
+        {
+          id: 'c1',
+          habitId: 'h1',
+          relationshipId: 'r1',
+          userId: 'u1',
+          completedOn: '2026-07-27',
+          createdAt: '',
+        },
+      ],
+      rangeDays: 7,
+      asOf,
+    })
+    const weeks = rollupHabitDays(stats.days, 'week')
+    expect(weeks.length).toBeGreaterThan(0)
+    expect(weeks.reduce((s, w) => s + w.completed, 0)).toBe(1)
+  })
+
+  it('builds per-habit breakdown', () => {
+    const rows = buildPerHabitBreakdown({
+      habits: [habit({ id: 'h1', title: 'Kneel' })],
+      completions: [
+        {
+          id: 'c1',
+          habitId: 'h1',
+          relationshipId: 'r1',
+          userId: 'u1',
+          completedOn: '2026-07-27',
+          createdAt: '',
+        },
+      ],
+      rangeDays: 7,
+      asOf,
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].title).toBe('Kneel')
+    expect(rows[0].completed).toBe(1)
+  })
+
+  it('compares only provided relationship members', () => {
+    const rows = buildMemberComparisons({
+      members: [
+        { userId: 'u1', role: 'dominant', displayName: 'Dom' },
+        { userId: 'u2', role: 'submissive', displayName: 'Sub' },
+      ],
+      habits: [
+        habit({ id: 'h1', assignedToUserId: 'u1' }),
+        habit({ id: 'h2', assignedToUserId: 'u2' }),
+      ],
+      completions: [],
+      ledger: [
+        {
+          id: 'p1',
+          relationshipId: 'r1',
+          userId: 'u1',
+          amount: 10,
+          source: 'manual_grant',
+          note: '',
+          createdAt: '2026-07-27T12:00:00.000Z',
+          createdByUserId: 'u1',
+        },
+        {
+          id: 'p-stranger',
+          relationshipId: 'r1',
+          userId: 'stranger',
+          amount: 999,
+          source: 'manual_grant',
+          note: '',
+          createdAt: '2026-07-27T12:00:00.000Z',
+          createdByUserId: 'u1',
+        },
+      ],
+      journalEntries: [],
+      rangeDays: 7,
+      asOf,
+      journalStreakFor: () => 0,
+    })
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.userId).sort()).toEqual(['u1', 'u2'])
+    expect(rows.find((r) => r.userId === 'u1')?.pointsEarned).toBe(10)
+    expect(rows.every((r) => r.userId !== 'stranger')).toBe(true)
+  })
+
+  it('builds a CSV export string', () => {
+    const days = enumerateDays(2, asOf)
+    const csv = buildStatsCsv({
+      habitDays: days.map((d) => ({ ...d, completed: 1, expected: 2, rate: 0.5 })),
+      pointsDays: days.map((d) => ({ ...d, earned: 3, spent: 1 })),
+      journalDays: days.map((d) => ({ ...d, entries: 0 })),
+      ruleDays: days.map((d) => ({ ...d, count: 0 })),
+    })
+    expect(csv.split('\n')[0]).toContain('habit_completed')
+    expect(csv.split('\n').length).toBe(3)
   })
 })

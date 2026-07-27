@@ -11,32 +11,52 @@ import {
   buildCatalogBreakdown,
   buildHabitStats,
   buildJournalStats,
+  buildMemberComparisons,
+  buildPerHabitBreakdown,
   buildPointsStats,
   buildRuleViolationTrend,
+  buildStatsCsv,
+  rollupHabitDays,
+  rollupJournalDays,
+  rollupPointsDays,
+  rollupRuleViolationDays,
+  type StatsGranularity,
   type StatsRangeDays,
 } from '@/features/stats/statsLogic'
 import { isDemoMode } from '@/lib/firebase/config'
+import type { RelationshipMember } from '@/types/models'
 
 export type StatsBundle = {
   rangeDays: StatsRangeDays
   setRangeDays: (days: StatsRangeDays) => void
+  granularity: StatsGranularity
+  setGranularity: (value: StatsGranularity) => void
   mineOnly: boolean
   setMineOnly: (value: boolean) => void
   loading: boolean
   habitStats: ReturnType<typeof buildHabitStats>
+  habitChartDays: ReturnType<typeof rollupHabitDays>
   pointsStats: ReturnType<typeof buildPointsStats>
+  pointsChartDays: ReturnType<typeof rollupPointsDays>
   catalogBreakdown: ReturnType<typeof buildCatalogBreakdown>
   journalStats: ReturnType<typeof buildJournalStats>
+  journalChartDays: ReturnType<typeof rollupJournalDays>
   journalStreak: number
   ruleViolationTrend: ReturnType<typeof buildRuleViolationTrend>
+  ruleChartDays: ReturnType<typeof rollupRuleViolationDays>
+  perHabit: ReturnType<typeof buildPerHabitBreakdown>
+  memberComparisons: ReturnType<typeof buildMemberComparisons>
+  csv: string
   refresh: () => Promise<void>
 }
 
 export function useStatsData(
   relationshipId: string | undefined,
   userId: string | undefined,
+  members: RelationshipMember[] = [],
 ): StatsBundle {
   const [rangeDays, setRangeDays] = useState<StatsRangeDays>(30)
+  const [granularity, setGranularity] = useState<StatsGranularity>('day')
   const [mineOnly, setMineOnly] = useState(true)
   const [loading, setLoading] = useState(Boolean(relationshipId))
   const [habits, setHabits] = useState<Awaited<ReturnType<typeof listHabits>>>([])
@@ -92,6 +112,13 @@ export function useStatsData(
     return () => unsubs.forEach((u) => u())
   }, [relationshipId, refresh])
 
+  // Auto-pick a sensible default granularity when range changes
+  useEffect(() => {
+    if (rangeDays === 7) setGranularity('day')
+    else if (rangeDays === 30) setGranularity('week')
+    else setGranularity('month')
+  }, [rangeDays])
+
   const filterUserId = mineOnly ? userId : undefined
 
   const habitStats = useMemo(
@@ -145,18 +172,80 @@ export function useStatsData(
     [history, rangeDays],
   )
 
+  const habitChartDays = useMemo(
+    () => rollupHabitDays(habitStats.days, granularity),
+    [habitStats.days, granularity],
+  )
+  const pointsChartDays = useMemo(
+    () => rollupPointsDays(pointsStats.days, granularity),
+    [pointsStats.days, granularity],
+  )
+  const journalChartDays = useMemo(
+    () => rollupJournalDays(journalStats.days, granularity),
+    [journalStats.days, granularity],
+  )
+  const ruleChartDays = useMemo(
+    () => rollupRuleViolationDays(ruleViolationTrend, granularity),
+    [ruleViolationTrend, granularity],
+  )
+
+  const perHabit = useMemo(
+    () =>
+      buildPerHabitBreakdown({
+        habits,
+        completions,
+        rangeDays,
+        userId: filterUserId,
+      }),
+    [habits, completions, rangeDays, filterUserId],
+  )
+
+  const memberComparisons = useMemo(
+    () =>
+      buildMemberComparisons({
+        members,
+        habits,
+        completions,
+        ledger,
+        journalEntries,
+        rangeDays,
+        journalStreakFor: (uid) => computeJournalStreak(journalEntries, uid),
+      }),
+    [members, habits, completions, ledger, journalEntries, rangeDays],
+  )
+
+  const csv = useMemo(
+    () =>
+      buildStatsCsv({
+        habitDays: habitStats.days,
+        pointsDays: pointsStats.days,
+        journalDays: journalStats.days,
+        ruleDays: ruleViolationTrend,
+      }),
+    [habitStats.days, pointsStats.days, journalStats.days, ruleViolationTrend],
+  )
+
   return {
     rangeDays,
     setRangeDays,
+    granularity,
+    setGranularity,
     mineOnly,
     setMineOnly,
     loading,
     habitStats,
+    habitChartDays,
     pointsStats,
+    pointsChartDays,
     catalogBreakdown,
     journalStats,
+    journalChartDays,
     journalStreak,
     ruleViolationTrend,
+    ruleChartDays,
+    perHabit,
+    memberComparisons,
+    csv,
     refresh,
   }
 }

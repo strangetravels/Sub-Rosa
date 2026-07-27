@@ -70,10 +70,14 @@ describe('StatsPage', () => {
     expect(screen.getByText('Journal streak')).toBeInTheDocument()
     expect(screen.getByText('Habit completions')).toBeInTheDocument()
     expect(screen.getByText('Points earned vs spent')).toBeInTheDocument()
+    expect(screen.getByText('Per-habit breakdown')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Export CSV/i })).toBeInTheDocument()
 
     await u.click(screen.getByRole('button', { name: '7d' }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '7d' })).toHaveClass('text-rose-300')
     })
+    await u.click(screen.getByRole('button', { name: /^day$/i }))
+    expect(screen.getByRole('button', { name: /^day$/i })).toHaveClass('text-rose-300')
   })
 })
