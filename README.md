@@ -4,16 +4,17 @@ Private habit and task tracking for consensual dominant/submissive (D/s) relatio
 
 ## What it does
 
-- **Habits & rules** — recurring tasks, category colors, streaks, versioned rule library with acknowledgment
-- **Rewards, punishments & points** — catalogs, manual or auto assignment, ledger and reward store
-- **Journal** — private or shared entries per post, prompts, streak rewards
-- **Chat** — real-time messaging per relationship
+- **Habits & tasks** — recurring habits (daily / weekdays / X× per week), categories, streaks, completion history, today’s dashboard with “assigned to me” filter
+- **Rules** — versioned rule library, category filters, optional partner acknowledgment, per-version ack roster, optional default-consequence link, encrypted rule bodies when the content key is unlocked
+- **Rewards, punishments & points** — catalogs, manual or auto assignment, ledger and reward store *(roadmap)*
+- **Journal** — private or shared entries per post, prompts, streak rewards *(roadmap)*
+- **Chat** — real-time messaging per relationship *(roadmap)*
 - **Multi-partner** — fully separate data per relationship, with a workspace-style switcher
 
 ## Principles
 
 - **Per-relationship isolation** — habits, rules, points, journal, and chat never leak across partners
-- **Client-side E2EE** — journal and chat are encrypted on device before Firestore; admins see ciphertext only
+- **Client-side E2EE** — sensitive freeform text is encrypted on device before storage; admins see ciphertext only
 - **Consent & safety** — safeword/pause, mutual rule acknowledgment, easy exit, data export
 - **PWA distribution** — installable web app (no app-store review risk for adult/kink-adjacent themes)
 
@@ -26,18 +27,29 @@ Private habit and task tracking for consensual dominant/submissive (D/s) relatio
 | Backend | Firebase Auth + Firestore + FCM |
 | Hosting | Vercel or Netlify (free tier) |
 | Charts | Recharts |
+| Testing | Vitest + Testing Library + jsdom |
 
 Designed to run at **$0/month** on Firebase Spark for personal/small-group use (no Cloud Storage in v1).
 
 ## Security model
 
-Firestore Security Rules stop other users — they do **not** stop project admins. Sensitive content is encrypted client-side with a **per-relationship AES content key** (Web Crypto), wrapped with an Argon2id passphrase (separate from login) and transported between partners via **ECDH (P-256)** with safety-number verification. Unlocked keys live in IndexedDB; a recovery phrase can restore access. No server-side passphrase reset. Encrypt: journal bodies, chat messages, freeform rule/reward/punishment text. Leave operational fields (IDs, timestamps, streak counts, point totals) in plaintext for queries and stats.
+Firestore Security Rules stop other users — they do **not** stop project admins. Sensitive content is encrypted client-side with a **per-relationship AES content key** (Web Crypto), wrapped with an Argon2id passphrase (separate from login) and transported between partners via **ECDH (P-256)** with safety-number verification. Unlocked keys live in IndexedDB; a recovery phrase can restore access. No server-side passphrase reset.
 
-## v1 scope
+**Encrypt when the content key is unlocked:** journal bodies, chat messages, freeform rule/reward/punishment text. **Leave in plaintext for queries/stats:** IDs, timestamps, streak counts, point totals, habit completion booleans, rule titles/metadata.
 
-**In scope:** auth & pairing, E2EE, habits, rules, rewards/punishments, points, journal, chat, stats, notifications, passcode/discreet mode, safety/consent, PWA polish.
+If rule text was stored encrypted and the device key is locked, the Rules UI shows a placeholder with an **Unlock in Settings** link.
 
-**Deferred:** photo proof (needs Cloud Storage / Blaze), deep gamification (ranks, mystery box, quests), voice memos, home-screen widgets, calendar view, partner status, scheduled rulesets.
+## What’s built so far
+
+| Area | Status |
+| --- | --- |
+| PWA shell (Vite/React/TS/Tailwind) | Done |
+| Auth (email/password) + demo mode without Firebase | Done |
+| Relationships, invite codes, workspace switcher | Done |
+| E2EE content keys, passphrase wrap, ECDH delivery, safety numbers, recovery | Done |
+| Habits CRUD, categories, streaks, history, dashboard today list | Done |
+| Rules library, versions, acknowledgment, encrypted bodies | Done |
+| Rewards / punishments / points / journal / chat / stats / FCM / safety UI | Not yet |
 
 ## Roadmap
 
@@ -67,6 +79,12 @@ cp .env.example .env   # fill in Firebase web config
 npm run dev
 ```
 
+Requires **Node ≥ 20** (`.node-version` pins 22). Run tests with:
+
+```bash
+npm test
+```
+
 Build for production:
 
 ```bash
@@ -78,7 +96,7 @@ Environment variables are documented in [`.env.example`](.env.example). Without 
 
 ## Privacy
 
-This app stores highly sensitive personal data. Do not log plaintext journal or chat content in crash reporting, analytics, or server logs. Prefer ciphertext-only server paths if Cloud Functions are added later.
+This app stores highly sensitive personal data. Do not log plaintext journal, chat, or rule bodies in crash reporting, analytics, or server logs. Prefer ciphertext-only server paths if Cloud Functions are added later.
 
 ## License
 
