@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { AuthProvider } from '@/features/auth/AuthProvider'
@@ -6,6 +7,7 @@ import { RelationshipProvider } from '@/features/relationships/RelationshipProvi
 import { DashboardPage } from '@/features/relationships/DashboardPage'
 import { signUp } from '@/features/auth/authService'
 import { createRelationship } from '@/features/relationships/relationshipService'
+import { createHabit } from '@/features/habits/habitService'
 
 function renderDashboard() {
   return render(
@@ -35,5 +37,33 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/Your role:/)).toHaveTextContent('dominant')
     expect(screen.getByText(rel.inviteCode)).toBeInTheDocument()
     expect(screen.getByText(/Share invite code/)).toBeInTheDocument()
+  })
+
+  it('lists today’s habits and toggles completion', async () => {
+    const user = userEvent.setup()
+    const profile = await signUp('dashhabits@example.com', 'secret123', 'Dash Habits')
+    const { relationship } = await createRelationship({
+      user: profile,
+      name: 'Daily Dynamic',
+      role: 'dominant',
+      passphrase: 'encrypt-me-please',
+    })
+    await createHabit({
+      relationshipId: relationship.id,
+      title: 'Kneel greeting',
+      frequency: { type: 'daily' },
+      assignedToUserId: profile.id,
+      createdByUserId: profile.id,
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByText('Kneel greeting')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Complete Kneel greeting/i }))
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Uncomplete Kneel greeting/i }),
+      ).toBeInTheDocument()
+    })
   })
 })
