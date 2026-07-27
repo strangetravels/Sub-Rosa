@@ -6,11 +6,15 @@ import {
 } from '@/features/relationships/relationshipService'
 import { createJournalEntry } from '@/features/journal/journalService'
 import {
+  clearChatTyping,
   countUnreadMessages,
   deleteChatMessage,
+  listActiveTypers,
   listChatMessages,
   markChatMessagesRead,
+  previewChatBody,
   sendChatMessage,
+  setChatTyping,
 } from '@/features/chat/chatService'
 
 const PASS = 'encrypt-me-please'
@@ -122,5 +126,45 @@ describe('chatService', () => {
     await deleteChatMessage(relationship.id, msg.id, a.id)
     const list = await listChatMessages(relationship.id)
     expect(list).toHaveLength(0)
+  })
+
+  it('tracks typing presence with TTL', async () => {
+    const { a, relationship } = await setupPair('chat-type')
+    await setChatTyping({
+      relationshipId: relationship.id,
+      userId: a.id,
+      displayName: 'Alice',
+    })
+    expect(listActiveTypers(relationship.id)).toHaveLength(1)
+    expect(listActiveTypers(relationship.id, a.id)).toHaveLength(0)
+
+    await clearChatTyping({ relationshipId: relationship.id, userId: a.id })
+    expect(listActiveTypers(relationship.id)).toHaveLength(0)
+  })
+
+  it('previews locked and journal-only messages', () => {
+    expect(
+      previewChatBody({
+        id: '1',
+        relationshipId: 'r',
+        senderUserId: 'u',
+        body: '',
+        journalEntryTitle: 'Reflection',
+        createdAt: '',
+        readBy: {},
+      }),
+    ).toBe('Journal: Reflection')
+
+    expect(
+      previewChatBody({
+        id: '2',
+        relationshipId: 'r',
+        senderUserId: 'u',
+        body: '[Unlock encryption key in Settings to read this text.]',
+        bodyCiphertext: { ivB64: 'x', ciphertextB64: 'y' },
+        createdAt: '',
+        readBy: {},
+      }),
+    ).toBe('Encrypted message')
   })
 })

@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
+  clearChatTyping,
   DECRYPT_FAILED_TEXT,
   deleteChatMessage,
   LOCKED_TEXT,
   sendChatMessage,
+  setChatTyping,
 } from '@/features/chat/chatService'
 import { useChatData } from '@/features/chat/useChatData'
 import { useJournalData } from '@/features/journal/useJournalData'
@@ -32,29 +34,66 @@ export function ChatPage() {
   const { user } = useAuth()
   const { activeRelationship } = useRelationship()
   const relationshipId = activeRelationship?.id
-  const { messages, loading } = useChatData(relationshipId, user?.id)
+  const { messages, typers, loading } = useChatData(relationshipId, user?.id, { markRead: true })
   const { entries: journalEntries } = useJournalData(relationshipId, user?.id)
 
   const [draft, setDraft] = useState('')
   const [attachId, setAttachId] = useState('')
   const [showAttach, setShowAttach] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const typingTimer = useRef<number | null>(null)
+
+  const alone = (activeRelationship?.members.length ?? 0) < 2
 
   const sharedJournal = useMemo(
-    () =>
-      journalEntries
-        .filter((e) => e.visibility === 'shared')
-        .slice(0, 20),
+    () => journalEntries.filter((e) => e.visibility === 'shared').slice(0, 20),
     [journalEntries],
   )
 
   const selectedJournal = sharedJournal.find((e) => e.id === attachId)
 
+  const filteredMessages = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return messages
+    return messages.filter((m) => {
+      if (m.body.toLowerCase().includes(q)) return true
+      if (m.journalEntryTitle?.toLowerCase().includes(q)) return true
+      return false
+    })
+  }, [messages, searchQuery])
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length])
+  }, [filteredMessages.length, typers.length])
+
+  useEffect(() => {
+    return () => {
+      if (typingTimer.current) window.clearTimeout(typingTimer.current)
+      if (relationshipId && user) {
+        void clearChatTyping({ relationshipId, userId: user.id })
+      }
+    }
+  }, [relationshipId, user])
+
+  function bumpTyping(nextDraft: string) {
+    if (!activeRelationship || !user) return
+    if (!nextDraft.trim()) {
+      void clearChatTyping({ relationshipId: activeRelationship.id, userId: user.id })
+      return
+    }
+    void setChatTyping({
+      relationshipId: activeRelationship.id,
+      userId: user.id,
+      displayName: user.displayName,
+    })
+    if (typingTimer.current) window.clearTimeout(typingTimer.current)
+    typingTimer.current = window.setTimeout(() => {
+      void clearChatTyping({ relationshipId: activeRelationship.id, userId: user.id })
+    }, 2500)
+  }
 
   if (!activeRelationship || !user) {
     return (
@@ -81,12 +120,20 @@ export function ChatPage() {
       setDraft('')
       setAttachId('')
       setShowAttach(false)
+      await clearChatTyping({ relationshipId: activeRelationship!.id, userId: user!.id })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send message.')
     } finally {
       setSending(false)
     }
   }
+
+  const typingLabel =
+    typers.length === 0
+      ? null
+      : typers.length === 1
+        ? `${typers[0].displayName} is typing…`
+        : `${typers.map((t) => t.displayName).join(', ')} are typing…`
 
   return (
     <section className="mx-auto flex max-w-3xl flex-col" style={{ minHeight: '70vh' }}>
@@ -96,6 +143,27 @@ export function ChatPage() {
           Encrypted messaging for {activeRelationship.name}. Attach a shared journal entry when
           useful.
         </p>
+        {alone ? (
+          <p className="mt-2 rounded-md border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-200">
+            You&apos;re the only member so far. Share invite code{' '}
+            <code className="rounded bg-stone-800 px-1.5 py-0.5 tracking-widest text-rose-300">
+              {activeRelationship.inviteCode}
+            </code>{' '}
+            so your partner can join the conversation.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mb-3">
+        <label className="block text-xs text-stone-500">
+          Search messages
+          <input
+            className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-sm text-stone-50 outline-none placeholder:text-stone-600 focus:border-rose-500"
+            placeholder="Filter by text or journal title…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </label>
       </div>
 
       <div className="flex flex-1 flex-col rounded-lg border border-stone-700 bg-stone-900/50">
@@ -103,12 +171,23 @@ export function ChatPage() {
           {loading ? (
             <p className="text-sm text-stone-500">Loading…</p>
           ) : messages.length === 0 ? (
-            <p className="text-sm text-stone-500">No messages yet. Say hello.</p>
+            <div className="space-y-2 text-sm text-stone-500">
+              <p>No messages yet.</p>
+              {alone ? (
+                <p>Invite your partner, then say hello once they join.</p>
+              ) : (
+                <p>Say hello to start the thread.</p>
+              )}
+            </div>
+          ) : filteredMessages.length === 0 ? (
+            <p className="text-sm text-stone-500">No messages match your search.</p>
           ) : (
-            messages.map((msg) => {
+            filteredMessages.map((msg) => {
               const mine = msg.senderUserId === user.id
               const sender = activeRelationship.members.find((m) => m.userId === msg.senderUserId)
-              const locked = isLockedText(msg.body)
+              const locked = Boolean(msg.bodyCiphertext) || isLockedText(msg.body)
+              const showLocked =
+                locked && (isLockedText(msg.body) || !msg.body.trim())
               const readByPartner = activeRelationship.members.some(
                 (m) => m.userId !== user.id && Boolean(msg.readBy?.[m.userId]),
               )
@@ -126,7 +205,8 @@ export function ChatPage() {
                     ].join(' ')}
                   >
                     <p className="text-[11px] text-stone-500">
-                      {mine ? 'You' : (sender?.displayName ?? 'Unknown')} · {formatTime(msg.createdAt)}
+                      {mine ? 'You' : (sender?.displayName ?? 'Unknown')} ·{' '}
+                      {formatTime(msg.createdAt)}
                       {mine && readByPartner ? ' · Read' : ''}
                     </p>
                     {msg.journalEntryId ? (
@@ -134,7 +214,9 @@ export function ChatPage() {
                         <p className="text-[11px] uppercase tracking-wide text-stone-500">
                           Journal
                         </p>
-                        <p className="text-stone-200">{msg.journalEntryTitle ?? 'Attached entry'}</p>
+                        <p className="text-stone-200">
+                          {msg.journalEntryTitle ?? 'Attached entry'}
+                        </p>
                         <NavLink
                           to="/journal"
                           className="text-[11px] text-rose-400 hover:text-rose-300"
@@ -143,9 +225,11 @@ export function ChatPage() {
                         </NavLink>
                       </div>
                     ) : null}
-                    {locked ? (
+                    {showLocked ? (
                       <div className="mt-1">
-                        <p className="text-stone-400">{msg.body}</p>
+                        <p className="text-stone-400">
+                          {isLockedText(msg.body) ? msg.body : LOCKED_TEXT}
+                        </p>
                         <NavLink
                           to="/settings"
                           className="mt-1 inline-block text-[11px] text-rose-400 hover:text-rose-300"
@@ -175,10 +259,13 @@ export function ChatPage() {
               )
             })
           )}
+          {typingLabel ? (
+            <p className="text-xs italic text-stone-500">{typingLabel}</p>
+          ) : null}
           <div ref={bottomRef} />
         </div>
 
-        <div className="border-t border-stone-700 p-3 space-y-2">
+        <div className="space-y-2 border-t border-stone-700 p-3">
           {showAttach ? (
             <label className="block text-xs text-stone-400">
               Attach shared journal entry
@@ -213,9 +300,12 @@ export function ChatPage() {
             <textarea
               rows={2}
               className="flex-1 resize-none rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-sm text-stone-50 outline-none focus:border-rose-500"
-              placeholder="Write a message…"
+              placeholder={alone ? 'Draft a message for when they join…' : 'Write a message…'}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                bumpTyping(e.target.value)
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()

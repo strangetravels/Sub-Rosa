@@ -1,6 +1,7 @@
 import type {
   CatalogHistoryEntry,
   ChatMessage,
+  ChatTypingPresence,
   Habit,
   HabitCategory,
   HabitCompletion,
@@ -45,6 +46,7 @@ export type DemoState = {
   journalEntries: JournalEntry[]
   journalPrompts: JournalPrompt[]
   chatMessages: ChatMessage[]
+  chatTyping: ChatTypingPresence[]
 }
 
 function emptyState(): DemoState {
@@ -68,6 +70,7 @@ function emptyState(): DemoState {
     journalEntries: [],
     journalPrompts: [],
     chatMessages: [],
+    chatTyping: [],
   }
 }
 

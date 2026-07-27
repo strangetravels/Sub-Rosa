@@ -15,6 +15,7 @@ import {
   updateJournalEntry,
 } from '@/features/journal/journalService'
 import { useJournalData } from '@/features/journal/useJournalData'
+import { sendChatMessage } from '@/features/chat/chatService'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 import type { JournalEntry, JournalEntryVisibility, JournalPrompt } from '@/types/models'
 
@@ -53,6 +54,7 @@ export function JournalPage() {
   const [filterTag, setFilterTag] = useState('')
   const [filterDate, setFilterDate] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [shareStatus, setShareStatus] = useState<string | null>(null)
 
   const todayPrompt = useMemo(() => getDailyPrompt(toLocalDateKey()), [])
 
@@ -257,6 +259,25 @@ export function JournalPage() {
   async function handleDeletePrompt(promptId: string) {
     await deleteJournalPrompt(activeRelationship!.id, promptId)
     await refresh()
+  }
+
+  async function handleSendToChat(entry: JournalEntry) {
+    if (entry.visibility !== 'shared') {
+      setShareStatus('Only shared entries can be sent to chat.')
+      return
+    }
+    try {
+      await sendChatMessage({
+        relationshipId: activeRelationship!.id,
+        senderUserId: user!.id,
+        body: '',
+        journalEntry: { id: entry.id, title: entry.title },
+      })
+      setShareStatus(`Sent “${entry.title}” to chat.`)
+      setError(null)
+    } catch (err) {
+      setShareStatus(err instanceof Error ? err.message : 'Could not send to chat.')
+    }
   }
 
   return (
@@ -519,6 +540,15 @@ export function JournalPage() {
         </div>
       ) : null}
 
+      {shareStatus ? (
+        <p className="text-sm text-stone-300">
+          {shareStatus}{' '}
+          <NavLink to="/chat" className="text-rose-400 hover:text-rose-300">
+            Open chat
+          </NavLink>
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-4 text-sm">
         <label className="flex items-center gap-1.5 text-stone-400">
           <input
@@ -602,24 +632,35 @@ export function JournalPage() {
                       {entry.tags.length > 0 ? ` · ${entry.tags.join(', ')}` : ''}
                     </p>
                   </div>
-                  {entry.authorUserId === user.id ? (
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        type="button"
-                        className="text-xs text-stone-400 hover:text-stone-200"
-                        onClick={() => startEdit(entry)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="text-xs text-rose-400 hover:text-rose-300"
-                        onClick={() => void handleDelete(entry.id)}
-                      >
-                        Delete
-                      </button>
+                  <div className="flex shrink-0 gap-2">
+                      {entry.visibility === 'shared' ? (
+                        <button
+                          type="button"
+                          className="text-xs text-rose-400 hover:text-rose-300"
+                          onClick={() => void handleSendToChat(entry)}
+                        >
+                          Send to chat
+                        </button>
+                      ) : null}
+                      {entry.authorUserId === user.id ? (
+                        <>
+                          <button
+                            type="button"
+                            className="text-xs text-stone-400 hover:text-stone-200"
+                            onClick={() => startEdit(entry)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-rose-400 hover:text-rose-300"
+                            onClick={() => void handleDelete(entry.id)}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      ) : null}
                     </div>
-                  ) : null}
                 </div>
                 {locked ? (
                   <div className="mt-2">

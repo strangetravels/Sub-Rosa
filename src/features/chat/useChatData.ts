@@ -3,11 +3,13 @@ import {
   listChatMessages,
   markChatMessagesRead,
   subscribeToChatMessages,
+  subscribeToChatTyping,
 } from '@/features/chat/chatService'
-import type { ChatMessage } from '@/types/models'
+import type { ChatMessage, ChatTypingPresence } from '@/types/models'
 
 export type ChatBundle = {
   messages: ChatMessage[]
+  typers: ChatTypingPresence[]
   loading: boolean
   refresh: () => Promise<void>
 }
@@ -15,8 +17,11 @@ export type ChatBundle = {
 export function useChatData(
   relationshipId: string | undefined,
   userId: string | undefined,
+  options?: { markRead?: boolean },
 ): ChatBundle {
+  const markRead = options?.markRead ?? false
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [typers, setTypers] = useState<ChatTypingPresence[]>([])
   const [loading, setLoading] = useState(Boolean(relationshipId))
 
   const refresh = useCallback(async () => {
@@ -48,7 +53,15 @@ export function useChatData(
   }, [relationshipId])
 
   useEffect(() => {
-    if (!relationshipId || !userId || messages.length === 0) return
+    if (!relationshipId) {
+      setTypers([])
+      return
+    }
+    return subscribeToChatTyping(relationshipId, userId, setTypers)
+  }, [relationshipId, userId])
+
+  useEffect(() => {
+    if (!markRead || !relationshipId || !userId || messages.length === 0) return
     const unreadIds = messages
       .filter((m) => m.senderUserId !== userId && !(m.readBy ?? {})[userId])
       .map((m) => m.id)
@@ -58,7 +71,7 @@ export function useChatData(
       userId,
       messageIds: unreadIds,
     })
-  }, [messages, relationshipId, userId])
+  }, [messages, relationshipId, userId, markRead])
 
-  return { messages, loading, refresh }
+  return { messages, typers, loading, refresh }
 }

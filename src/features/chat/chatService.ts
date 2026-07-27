@@ -13,18 +13,35 @@ import { readDemoState, updateDemoState } from '@/lib/demo/store'
 import { getFirebaseDb } from '@/lib/firebase/app'
 import { isDemoMode } from '@/lib/firebase/config'
 import { createId } from '@/lib/id'
-import type { ChatMessage, EncryptedTextRecord, JournalEntry } from '@/types/models'
+import type { ChatMessage, ChatTypingPresence, EncryptedTextRecord, JournalEntry } from '@/types/models'
 
 const CHAT_CHANGED = 'subrosa-demo-chat'
+const CHAT_TYPING_CHANGED = 'subrosa-demo-chat-typing'
+export const TYPING_TTL_MS = 3500
 
 export function notifyDemoChatChanged(): void {
   window.dispatchEvent(new Event(CHAT_CHANGED))
+}
+
+export function notifyDemoChatTypingChanged(): void {
+  window.dispatchEvent(new Event(CHAT_TYPING_CHANGED))
 }
 
 export function subscribeToDemoChat(listener: () => void): () => void {
   window.addEventListener(CHAT_CHANGED, listener)
   window.addEventListener('storage', listener)
   return () => {
+    window.removeEventListener(CHAT_CHANGED, listener)
+    window.removeEventListener('storage', listener)
+  }
+}
+
+export function subscribeToDemoChatTyping(listener: () => void): () => void {
+  window.addEventListener(CHAT_TYPING_CHANGED, listener)
+  window.addEventListener(CHAT_CHANGED, listener)
+  window.addEventListener('storage', listener)
+  return () => {
+    window.removeEventListener(CHAT_TYPING_CHANGED, listener)
     window.removeEventListener(CHAT_CHANGED, listener)
     window.removeEventListener('storage', listener)
   }
@@ -233,4 +250,126 @@ export function countUnreadMessages(messages: ChatMessage[], userId: string): nu
   return messages.filter(
     (m) => m.senderUserId !== userId && !(m.readBy ?? {})[userId],
   ).length
+}
+
+export function previewChatBody(message: ChatMessage, maxLen = 80): string {
+  if (message.bodyCiphertext && (!message.body || message.body === LOCKED_TEXT || message.body === DECRYPT_FAILED_TEXT)) {
+    return 'Encrypted message'
+  }
+  if (isLockedPreview(message.body)) return 'Encrypted message'
+  if (message.journalEntryTitle && !message.body.trim()) {
+    return `Journal: ${message.journalEntryTitle}`
+  }
+  const text = message.body.trim() || (message.journalEntryTitle ? `Journal: ${message.journalEntryTitle}` : '')
+  if (text.length <= maxLen) return text
+  return `${text.slice(0, maxLen - 1)}…`
+}
+
+function isLockedPreview(value: string): boolean {
+  return value === LOCKED_TEXT || value === DECRYPT_FAILED_TEXT
+}
+
+export async function setChatTyping(input: {
+  relationshipId: string
+  userId: string
+  displayName: string
+}): Promise<void> {
+  const presence: ChatTypingPresence = {
+    relationshipId: input.relationshipId,
+    userId: input.userId,
+    displayName: input.displayName,
+    updatedAt: new Date().toISOString(),
+  }
+
+  if (isDemoMode()) {
+    updateDemoState((state) => ({
+      ...state,
+      chatTyping: [
+        ...state.chatTyping.filter(
+          (t) => !(t.relationshipId === input.relationshipId && t.userId === input.userId),
+        ),
+        presence,
+      ],
+    }))
+    notifyDemoChatTypingChanged()
+    return
+  }
+
+  const db = getFirebaseDb()
+  if (!db) throw new Error('Firestore is not configured.')
+  await setDoc(
+    doc(db, 'relationships', input.relationshipId, 'chatTyping', input.userId),
+    presence,
+  )
+}
+
+export async function clearChatTyping(input: {
+  relationshipId: string
+  userId: string
+}): Promise<void> {
+  if (isDemoMode()) {
+    updateDemoState((state) => ({
+      ...state,
+      chatTyping: state.chatTyping.filter(
+        (t) => !(t.relationshipId === input.relationshipId && t.userId === input.userId),
+      ),
+    }))
+    notifyDemoChatTypingChanged()
+    return
+  }
+
+  const db = getFirebaseDb()
+  if (!db) throw new Error('Firestore is not configured.')
+  await deleteDoc(doc(db, 'relationships', input.relationshipId, 'chatTyping', input.userId))
+}
+
+export function listActiveTypers(
+  relationshipId: string,
+  excludeUserId?: string,
+  nowMs: number = Date.now(),
+): ChatTypingPresence[] {
+  if (isDemoMode()) {
+    return readDemoState().chatTyping.filter((t) => {
+      if (t.relationshipId !== relationshipId) return false
+      if (excludeUserId && t.userId === excludeUserId) return false
+      const age = nowMs - new Date(t.updatedAt).getTime()
+      return age >= 0 && age < TYPING_TTL_MS
+    })
+  }
+  return []
+}
+
+export function subscribeToChatTyping(
+  relationshipId: string,
+  excludeUserId: string | undefined,
+  onChange: (typers: ChatTypingPresence[]) => void,
+): () => void {
+  if (isDemoMode()) {
+    const emit = () => onChange(listActiveTypers(relationshipId, excludeUserId))
+    emit()
+    const interval = window.setInterval(emit, 1000)
+    const unsub = subscribeToDemoChatTyping(emit)
+    return () => {
+      window.clearInterval(interval)
+      unsub()
+    }
+  }
+
+  const db = getFirebaseDb()
+  if (!db) {
+    onChange([])
+    return () => undefined
+  }
+
+  return onSnapshot(collection(db, 'relationships', relationshipId, 'chatTyping'), (snap) => {
+    const now = Date.now()
+    const typers = snap.docs
+      .map((d) => d.data() as ChatTypingPresence)
+      .filter((t) => {
+        if (excludeUserId && t.userId === excludeUserId) return false
+        const age = now - new Date(t.updatedAt).getTime()
+        return age >= 0 && age < TYPING_TTL_MS
+      })
+    onChange(typers)
+  })
 }

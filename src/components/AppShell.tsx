@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { countUnreadMessages } from '@/features/chat/chatService'
+import { useChatData } from '@/features/chat/useChatData'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
 
 const navItems = [
@@ -17,6 +19,8 @@ const navItems = [
 export function AppShell() {
   const { user } = useAuth()
   const { relationships, activeRelationship, setActiveRelationship } = useRelationship()
+  const { messages } = useChatData(activeRelationship?.id, user?.id, { markRead: false })
+  const unread = user ? countUnreadMessages(messages, user.id) : 0
 
   return (
     <div className="flex min-h-full flex-col md:flex-row">
@@ -56,14 +60,19 @@ export function AppShell() {
               end={'end' in item ? item.end : false}
               className={({ isActive }) =>
                 [
-                  'whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors',
+                  'flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors',
                   isActive
                     ? 'bg-stone-800 text-rose-400'
                     : 'text-stone-300 hover:bg-stone-800/70 hover:text-stone-50',
                 ].join(' ')
               }
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.to === '/chat' && unread > 0 ? (
+                <span className="rounded-md bg-rose-900/80 px-1.5 py-0.5 text-[10px] font-medium text-rose-100">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              ) : null}
             </NavLink>
           ))}
         </nav>

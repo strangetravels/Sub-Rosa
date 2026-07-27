@@ -260,6 +260,13 @@ export type ChatMessage = {
   readBy: Record<string, string>
 }
 
+export type ChatTypingPresence = {
+  relationshipId: string
+  userId: string
+  displayName: string
+  updatedAt: string
+}
+
 export type PointsLedgerSource =
   | 'habit_completion'
   | 'manual_grant'

@@ -33,7 +33,7 @@ describe('ChatPage', () => {
 
     renderChat()
 
-    const box = await screen.findByPlaceholderText('Write a message…')
+    const box = await screen.findByPlaceholderText(/message/i)
     await u.type(box, 'Hello partner')
     await u.click(screen.getByRole('button', { name: /^Send$/i }))
 
