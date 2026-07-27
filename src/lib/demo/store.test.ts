@@ -8,6 +8,9 @@ describe('demo store', () => {
       sessionUserId: null,
       relationships: [],
       activeRelationshipIdByUser: {},
+      habits: [],
+      habitCategories: [],
+      habitCompletions: [],
     })
   })
 

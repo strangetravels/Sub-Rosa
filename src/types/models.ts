@@ -53,3 +53,45 @@ export type Relationship = {
   createdBy: string
   crypto?: RelationshipCrypto
 }
+
+export type HabitFrequency =
+  | { type: 'daily' }
+  | { type: 'weekdays'; days: number[] }
+  | { type: 'weeklyCount'; count: number }
+
+export type HabitStatus = 'active' | 'archived'
+
+export type HabitCategory = {
+  id: string
+  relationshipId: string
+  label: string
+  color: string
+}
+
+export type Habit = {
+  id: string
+  relationshipId: string
+  title: string
+  description: string
+  categoryId: string | null
+  frequency: HabitFrequency
+  assignedToUserId: string
+  createdByUserId: string
+  /** Reserved for rewards feature branch. */
+  linkedRewardId?: string | null
+  /** Reserved for punishments feature branch. */
+  linkedPunishmentId?: string | null
+  status: HabitStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export type HabitCompletion = {
+  id: string
+  habitId: string
+  relationshipId: string
+  userId: string
+  /** Local calendar date YYYY-MM-DD */
+  completedOn: string
+  createdAt: string
+}

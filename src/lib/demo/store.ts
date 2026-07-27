@@ -1,4 +1,10 @@
-import type { Relationship, UserProfile } from '@/types/models'
+import type {
+  Habit,
+  HabitCategory,
+  HabitCompletion,
+  Relationship,
+  UserProfile,
+} from '@/types/models'
 
 const STORAGE_KEY = 'subrosa.demo.v1'
 
@@ -12,6 +18,9 @@ export type DemoState = {
   sessionUserId: string | null
   relationships: Relationship[]
   activeRelationshipIdByUser: Record<string, string | null>
+  habits: Habit[]
+  habitCategories: HabitCategory[]
+  habitCompletions: HabitCompletion[]
 }
 
 function emptyState(): DemoState {
@@ -20,6 +29,9 @@ function emptyState(): DemoState {
     sessionUserId: null,
     relationships: [],
     activeRelationshipIdByUser: {},
+    habits: [],
+    habitCategories: [],
+    habitCompletions: [],
   }
 }
 

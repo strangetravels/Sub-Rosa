@@ -6,6 +6,7 @@ import { AuthPage } from '@/features/auth/AuthPage'
 import { OnboardingPage } from '@/features/relationships/OnboardingPage'
 import { PartnersSettingsPage } from '@/features/relationships/PartnersSettingsPage'
 import { DashboardPage } from '@/features/relationships/DashboardPage'
+import { HabitsPage } from '@/features/habits/HabitsPage'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 function AuthEntry() {
@@ -32,15 +33,7 @@ export function App() {
         <Route element={<RequireRelationship />}>
           <Route element={<AppShell />}>
             <Route index element={<DashboardPage />} />
-            <Route
-              path="habits"
-              element={
-                <PlaceholderPage
-                  title="Habits & Tasks"
-                  description="Create, edit, and archive recurring habits for the active relationship."
-                />
-              }
-            />
+            <Route path="habits" element={<HabitsPage />} />
             <Route
               path="rules"
               element={
