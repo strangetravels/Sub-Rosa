@@ -267,6 +267,59 @@ export type ChatTypingPresence = {
   updatedAt: string
 }
 
+export type NotificationKind =
+  | 'habit_reminder'
+  | 'habit_completed'
+  | 'habit_missed'
+  | 'shared_journal'
+  | 'chat_message'
+  | 'daily_prompt'
+
+export type NotificationPreferences = {
+  id: string
+  userId: string
+  relationshipId: string
+  habitReminders: boolean
+  habitCompleted: boolean
+  habitMissed: boolean
+  sharedJournal: boolean
+  chatMessage: boolean
+  dailyPrompt: boolean
+  /** Generic in-app / push text instead of habit titles or message previews. */
+  discreetMode: boolean
+  /** Local wall-clock HH:mm when the daily journal prompt is delivered. */
+  dailyPromptTimeLocal: string
+  /** Browser / FCM push enabled for this relationship. */
+  pushEnabled: boolean
+  fcmToken?: string | null
+  updatedAt: string
+}
+
+export type AppNotification = {
+  id: string
+  relationshipId: string
+  recipientUserId: string
+  kind: NotificationKind
+  title: string
+  body: string
+  href?: string | null
+  readAt: string | null
+  createdAt: string
+  /** Deduplicate recurring items (e.g. daily prompt for a date). */
+  occurrenceKey?: string | null
+}
+
+export type HabitReminder = {
+  id: string
+  relationshipId: string
+  habitId: string
+  userId: string
+  /** Local wall-clock HH:mm */
+  timeLocal: string
+  enabled: boolean
+  createdAt: string
+}
+
 export type PointsLedgerSource =
   | 'habit_completion'
   | 'manual_grant'

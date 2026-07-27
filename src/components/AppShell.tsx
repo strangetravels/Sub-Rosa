@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { countUnreadMessages } from '@/features/chat/chatService'
 import { useChatData } from '@/features/chat/useChatData'
+import { NotificationBell } from '@/features/notifications/NotificationCenter'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
 
 const navItems = [
@@ -76,6 +77,7 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
+        <NotificationBell relationshipId={activeRelationship?.id} userId={user?.id} />
       </aside>
       <main className="flex-1 px-4 py-6 md:px-8">
         <Outlet />

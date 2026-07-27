@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
@@ -19,10 +19,15 @@ import {
   weeklyCompletionCount,
 } from '@/features/habits/habitLogic'
 import { useHabitsData } from '@/features/habits/useHabitsData'
+import {
+  deleteHabitReminder,
+  listHabitReminders,
+  setHabitReminder,
+} from '@/features/notifications/notificationService'
 import { hasHabitMissPunishment } from '@/features/rewards/rewardService'
 import { useRewardsData } from '@/features/rewards/useRewardsData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
-import type { Habit, HabitFrequency } from '@/types/models'
+import type { Habit, HabitFrequency, HabitReminder } from '@/types/models'
 
 const WEEKDAY_OPTIONS = [
   { value: 0, label: 'Sun' },
@@ -81,6 +86,7 @@ export function HabitsPage() {
     { includeArchived: false },
   )
 
+  const [reminders, setReminders] = useState<HabitReminder[]>([])
   const [showArchived, setShowArchived] = useState(false)
   const [historyHabitId, setHistoryHabitId] = useState<string>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -90,6 +96,14 @@ export function HabitsPage() {
   const [error, setError] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!relationshipId || !user) {
+      setReminders([])
+      return
+    }
+    void listHabitReminders(relationshipId, user.id).then(setReminders)
+  }, [relationshipId, user, habits.length])
 
   const todayKey = toLocalDateKey()
   const visibleHabits = useMemo(
@@ -602,7 +616,52 @@ export function HabitsPage() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                    {habit.status === 'active' && user && habit.assignedToUserId === user.id ? (
+                      <label className="flex items-center gap-1.5 text-stone-400">
+                        Reminder
+                        <input
+                          type="time"
+                          className="rounded border border-stone-700 bg-stone-900 px-1.5 py-0.5 text-stone-200"
+                          value={
+                            reminders.find((r) => r.habitId === habit.id)?.timeLocal ?? ''
+                          }
+                          onChange={(e) => {
+                            const timeLocal = e.target.value
+                            if (!timeLocal || !relationshipId) return
+                            void setHabitReminder({
+                              relationshipId,
+                              habitId: habit.id,
+                              userId: user.id,
+                              timeLocal,
+                              enabled: true,
+                            }).then((r) =>
+                              setReminders((prev) => {
+                                const others = prev.filter((x) => x.habitId !== habit.id)
+                                return [...others, r]
+                              }),
+                            )
+                          }}
+                        />
+                        {reminders.find((r) => r.habitId === habit.id) ? (
+                          <button
+                            type="button"
+                            className="text-stone-500 hover:text-rose-300"
+                            onClick={() => {
+                              const existing = reminders.find((r) => r.habitId === habit.id)
+                              if (!existing || !relationshipId) return
+                              void deleteHabitReminder(relationshipId, existing.id).then(() =>
+                                setReminders((prev) =>
+                                  prev.filter((x) => x.id !== existing.id),
+                                ),
+                              )
+                            }}
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </label>
+                    ) : null}
                     {habit.status === 'active' ? (
                       <>
                         <button
