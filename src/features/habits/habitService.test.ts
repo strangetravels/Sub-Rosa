@@ -3,8 +3,10 @@ import { signUp } from '@/features/auth/authService'
 import { createRelationship } from '@/features/relationships/relationshipService'
 import {
   archiveHabit,
+  createCategory,
   createHabit,
   ensureDefaultCategories,
+  listCategories,
   listHabits,
   setHabitCompletedForDate,
   updateHabit,
@@ -28,11 +30,19 @@ describe('habitService', () => {
     const categories = await ensureDefaultCategories(relationship.id)
     expect(categories.length).toBeGreaterThan(0)
 
+    const custom = await createCategory({
+      relationshipId: relationship.id,
+      label: 'Ritual',
+      color: '#2563eb',
+    })
+    expect(custom.label).toBe('Ritual')
+    expect((await listCategories(relationship.id)).some((c) => c.id === custom.id)).toBe(true)
+
     const habit = await createHabit({
       relationshipId: relationship.id,
       title: 'Morning stretch',
       description: '5 minutes',
-      categoryId: categories[0]!.id,
+      categoryId: custom.id,
       frequency: { type: 'daily' },
       assignedToUserId: user.id,
       createdByUserId: user.id,
@@ -111,5 +121,13 @@ describe('habitService', () => {
         createdByUserId: user.id,
       }),
     ).rejects.toThrow('Pick at least one weekday.')
+
+    await expect(
+      createCategory({
+        relationshipId: relationship.id,
+        label: '  ',
+        color: '#fff',
+      }),
+    ).rejects.toThrow('Category name is required.')
   })
 })

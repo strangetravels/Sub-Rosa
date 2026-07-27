@@ -28,3 +28,13 @@ export function startOfWeekSunday(date: Date): Date {
 export function weekKey(date: Date): string {
   return toLocalDateKey(startOfWeekSunday(date))
 }
+
+export function formatLocalDateKey(key: string): string {
+  const date = parseLocalDateKey(key)
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}

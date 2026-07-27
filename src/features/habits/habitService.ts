@@ -88,6 +88,40 @@ export async function listCategories(relationshipId: string): Promise<HabitCateg
   return snap.docs.map((d) => d.data() as HabitCategory)
 }
 
+export async function createCategory(input: {
+  relationshipId: string
+  label: string
+  color: string
+}): Promise<HabitCategory> {
+  const label = input.label.trim()
+  if (!label) throw new Error('Category name is required.')
+  const color = input.color.trim() || '#78716c'
+
+  const category: HabitCategory = {
+    id: createId('cat'),
+    relationshipId: input.relationshipId,
+    label,
+    color,
+  }
+
+  if (isDemoMode()) {
+    updateDemoState((state) => ({
+      ...state,
+      habitCategories: [...state.habitCategories, category],
+    }))
+    notifyDemoHabitsChanged()
+    return category
+  }
+
+  const db = getFirebaseDb()
+  if (!db) throw new Error('Firestore is not configured.')
+  await setDoc(
+    doc(db, 'relationships', input.relationshipId, 'habitCategories', category.id),
+    category,
+  )
+  return category
+}
+
 export async function listHabits(
   relationshipId: string,
   options?: { includeArchived?: boolean },

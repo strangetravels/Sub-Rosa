@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
@@ -19,18 +20,15 @@ export function DashboardPage() {
   const { habits, categories, completions, loading, refresh } = useHabitsData(
     activeRelationship?.id,
   )
+  const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
   const todayKey = toLocalDateKey()
-  const todaysHabits = habits.filter(
-    (h) => h.status === 'active' && isHabitDueOn(h, completions),
-  )
-  // Shared relationship view: everyone's due habits, current user's first.
-  const sortedToday = [...todaysHabits].sort((a, b) => {
-    const aMine = a.assignedToUserId === user?.id ? 0 : 1
-    const bMine = b.assignedToUserId === user?.id ? 0 : 1
-    if (aMine !== bMine) return aMine - bMine
-    return a.title.localeCompare(b.title)
+  const todaysHabits = habits.filter((h) => {
+    if (h.status !== 'active' || !isHabitDueOn(h, completions)) return false
+    if (assignedToMeOnly && user) return h.assignedToUserId === user.id
+    return true
   })
+  const sortedToday = [...todaysHabits].sort((a, b) => a.title.localeCompare(b.title))
 
   return (
     <section className="mx-auto max-w-2xl space-y-8">
@@ -68,18 +66,31 @@ export function DashboardPage() {
 
       {activeRelationship && user ? (
         <div>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-medium text-stone-200">Today</h3>
-            <NavLink to="/habits" className="text-xs text-rose-400 hover:text-rose-300">
-              Manage habits
-            </NavLink>
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-stone-400">
+                <input
+                  type="checkbox"
+                  className="mr-1.5"
+                  checked={assignedToMeOnly}
+                  onChange={(e) => setAssignedToMeOnly(e.target.checked)}
+                />
+                Assigned to me
+              </label>
+              <NavLink to="/habits" className="text-xs text-rose-400 hover:text-rose-300">
+                Manage habits
+              </NavLink>
+            </div>
           </div>
 
           {loading ? (
             <p className="mt-4 text-sm text-stone-500">Loading habits…</p>
           ) : sortedToday.length === 0 ? (
             <p className="mt-4 text-sm text-stone-500">
-              Nothing due today.{' '}
+              {assignedToMeOnly
+                ? 'Nothing assigned to you today.'
+                : 'Nothing due today.'}{' '}
               <NavLink to="/habits" className="text-rose-400 hover:text-rose-300">
                 Add a habit
               </NavLink>

@@ -4,6 +4,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
 import {
   archiveHabit,
+  createCategory,
   createHabit,
   setHabitCompletedForDate,
   updateHabit,
@@ -16,7 +17,7 @@ import {
   weeklyCompletionCount,
 } from '@/features/habits/habitLogic'
 import { useHabitsData } from '@/features/habits/useHabitsData'
-import { toLocalDateKey } from '@/lib/date'
+import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 import type { Habit, HabitFrequency } from '@/types/models'
 
 const WEEKDAY_OPTIONS = [
@@ -27,6 +28,16 @@ const WEEKDAY_OPTIONS = [
   { value: 4, label: 'Thu' },
   { value: 5, label: 'Fri' },
   { value: 6, label: 'Sat' },
+] as const
+
+const CATEGORY_COLORS = [
+  '#78716c',
+  '#e11d48',
+  '#0d9488',
+  '#a855f7',
+  '#ea580c',
+  '#2563eb',
+  '#ca8a04',
 ] as const
 
 type FrequencyMode = 'daily' | 'weekdays' | 'weeklyCount'
@@ -60,9 +71,13 @@ export function HabitsPage() {
   })
 
   const [showArchived, setShowArchived] = useState(false)
+  const [historyHabitId, setHistoryHabitId] = useState<string>('all')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(() => emptyForm(user?.id ?? ''))
+  const [categoryLabel, setCategoryLabel] = useState('')
+  const [categoryColor, setCategoryColor] = useState<string>(CATEGORY_COLORS[0])
   const [error, setError] = useState<string | null>(null)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const todayKey = toLocalDateKey()
@@ -70,6 +85,21 @@ export function HabitsPage() {
     () => habits.filter((h) => (showArchived ? true : h.status === 'active')),
     [habits, showArchived],
   )
+
+  const historyRows = useMemo(() => {
+    const filtered =
+      historyHabitId === 'all'
+        ? completions
+        : completions.filter((c) => c.habitId === historyHabitId)
+    return [...filtered]
+      .sort((a, b) => {
+        if (a.completedOn === b.completedOn) {
+          return b.createdAt.localeCompare(a.createdAt)
+        }
+        return b.completedOn.localeCompare(a.completedOn)
+      })
+      .slice(0, 40)
+  }, [completions, historyHabitId])
 
   function startCreate() {
     setEditingId(null)
@@ -125,6 +155,23 @@ export function HabitsPage() {
     }
   }
 
+  async function saveCategory() {
+    if (!relationshipId) return
+    setCategoryError(null)
+    try {
+      const created = await createCategory({
+        relationshipId,
+        label: categoryLabel,
+        color: categoryColor,
+      })
+      setCategoryLabel('')
+      setForm((f) => ({ ...f, categoryId: created.id }))
+      await refresh()
+    } catch (err) {
+      setCategoryError(err instanceof Error ? err.message : 'Could not create category.')
+    }
+  }
+
   async function toggleToday(habit: Habit) {
     if (!user || !relationshipId) return
     const done = Boolean(completionsOnDate(completions, habit.id, todayKey))
@@ -156,6 +203,62 @@ export function HabitsPage() {
         <NavLink to="/" className="mt-2 inline-block text-sm text-rose-400 hover:text-rose-300">
           View today’s list on the dashboard
         </NavLink>
+      </div>
+
+      <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
+        <h3 className="text-sm font-medium text-stone-200">Categories</h3>
+        <p className="mt-1 text-sm text-stone-400">
+          Defaults are seeded per relationship. Add your own labels and colors.
+        </p>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {categories.map((c) => (
+            <li
+              key={c.id}
+              className="inline-flex items-center gap-1.5 rounded-md border border-stone-700 px-2 py-1 text-xs text-stone-300"
+            >
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: c.color }}
+              />
+              {c.label}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex flex-wrap items-end gap-2">
+          <label className="block min-w-[10rem] flex-1 text-sm text-stone-300">
+            New category
+            <input
+              className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+              value={categoryLabel}
+              onChange={(e) => setCategoryLabel(e.target.value)}
+              maxLength={40}
+            />
+          </label>
+          <div className="flex flex-wrap gap-1.5 pb-2">
+            {CATEGORY_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={`Color ${color}`}
+                className={[
+                  'h-7 w-7 rounded-md border',
+                  categoryColor === color ? 'border-stone-100' : 'border-stone-700',
+                ].join(' ')}
+                style={{ backgroundColor: color }}
+                onClick={() => setCategoryColor(color)}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={!categoryLabel.trim()}
+            className="rounded-md border border-stone-600 px-3 py-2 text-sm text-stone-300 hover:border-stone-400 disabled:opacity-50"
+            onClick={() => void saveCategory()}
+          >
+            Add category
+          </button>
+        </div>
+        {categoryError ? <p className="mt-2 text-sm text-rose-400">{categoryError}</p> : null}
       </div>
 
       <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
@@ -420,7 +523,57 @@ export function HabitsPage() {
                         Restore
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="text-stone-400 hover:text-stone-200"
+                      onClick={() => setHistoryHabitId(habit.id)}
+                    >
+                      View history
+                    </button>
                   </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-medium text-stone-200">Completion history</h3>
+          <label className="text-xs text-stone-400">
+            Habit
+            <select
+              className="ml-2 rounded-md border border-stone-600 bg-stone-900 px-2 py-1 text-stone-200 outline-none focus:border-rose-500"
+              value={historyHabitId}
+              onChange={(e) => setHistoryHabitId(e.target.value)}
+            >
+              <option value="all">All habits</option>
+              {habits.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {historyRows.length === 0 ? (
+          <p className="mt-4 text-sm text-stone-500">No completions logged yet.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-stone-800 text-sm">
+            {historyRows.map((row) => {
+              const habit = habits.find((h) => h.id === row.habitId)
+              const member = activeRelationship.members.find((m) => m.userId === row.userId)
+              return (
+                <li key={row.id} className="flex items-start justify-between gap-3 py-2.5">
+                  <div>
+                    <p className="text-stone-200">{habit?.title ?? 'Deleted habit'}</p>
+                    <p className="text-xs text-stone-500">
+                      {member?.displayName ?? 'Unknown'} · {formatLocalDateKey(row.completedOn)}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-emerald-400">Done</span>
                 </li>
               )
             })}

@@ -66,4 +66,41 @@ describe('DashboardPage', () => {
       ).toBeInTheDocument()
     })
   })
+
+  it('filters today’s list to habits assigned to me', async () => {
+    const user = userEvent.setup()
+    const profile = await signUp('filter-a@example.com', 'secret123', 'Filter A')
+    const { relationship } = await createRelationship({
+      user: profile,
+      name: 'Filter Dynamic',
+      role: 'dominant',
+      passphrase: 'encrypt-me-please',
+    })
+
+    await createHabit({
+      relationshipId: relationship.id,
+      title: 'Mine only',
+      frequency: { type: 'daily' },
+      assignedToUserId: profile.id,
+      createdByUserId: profile.id,
+    })
+    await createHabit({
+      relationshipId: relationship.id,
+      title: 'Partner task',
+      frequency: { type: 'daily' },
+      assignedToUserId: 'other_user',
+      createdByUserId: profile.id,
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByLabelText('Assigned to me')).toBeChecked()
+    expect(await screen.findByText('Mine only')).toBeInTheDocument()
+    expect(screen.queryByText('Partner task')).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Assigned to me'))
+    await waitFor(() => {
+      expect(screen.getByText('Partner task')).toBeInTheDocument()
+    })
+  })
 })
