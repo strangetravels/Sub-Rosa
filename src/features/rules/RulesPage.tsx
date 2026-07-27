@@ -438,7 +438,9 @@ export function RulesPage() {
                         {' · '}
                         by {creator?.displayName ?? 'Unknown'}
                         {rule.requiresAcknowledgment ? ' · acknowledgment required' : ''}
-                        {rule.linkedPunishmentId ? ` · default consequence ${rule.linkedPunishmentId}` : ''}
+                        {rule.linkedPunishmentId
+                          ? ` · default consequence ${linkedPunishment?.title ?? rule.linkedPunishmentId}`
+                          : ''}
                       </p>
                     </div>
                     {needsAck ? (

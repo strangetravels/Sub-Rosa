@@ -358,49 +358,53 @@ export function RewardsPage() {
               {visibleRewards.length === 0 ? (
                 <li className="text-sm text-stone-500">No rewards yet.</li>
               ) : (
-                visibleRewards.map((reward) => (
-                  <CatalogCard
-                    key={reward.id}
-                    title={reward.title}
-                    description={reward.description}
-                    footer={`cost ${reward.pointCost}`}
-                    status={reward.status}
-                    locked={isLockedText(reward.description)}
-                    onEdit={() => {
-                      setRewardEditingId(reward.id)
-                      setRewardForm({
-                        title: reward.title,
-                        description: isLockedText(reward.description) ? '' : reward.description,
-                        categoryId: reward.categoryId ?? '',
-                        pointCost: reward.pointCost,
-                      })
-                    }}
-                    onApply={
-                      reward.status === 'active'
-                        ? () =>
-                            void applyRewardManually({
-                              relationshipId: activeRelationship.id,
-                              rewardId: reward.id,
-                              targetUserId,
-                              appliedByUserId: user.id,
-                              note: applyNote,
-                            }).then(refresh)
-                        : undefined
-                    }
-                    onArchive={
-                      reward.status === 'active'
-                        ? () =>
-                            void archiveReward(activeRelationship.id, reward.id).then(refresh)
-                        : undefined
-                    }
-                    onRestore={
-                      reward.status === 'archived'
-                        ? () =>
-                            void restoreReward(activeRelationship.id, reward.id).then(refresh)
-                        : undefined
-                    }
-                  />
-                ))
+                visibleRewards.map((reward) => {
+                  const category =
+                    reward.categoryId ? categories.find((c) => c.id === reward.categoryId) : undefined
+                  return (
+                    <CatalogCard
+                      key={reward.id}
+                      title={reward.title}
+                      description={reward.description}
+                      footer={`cost ${reward.pointCost}`}
+                      status={reward.status}
+                      categoryLabel={category?.label}
+                      categoryColor={category?.color}
+                      locked={isLockedText(reward.description)}
+                      onEdit={() => {
+                        setRewardEditingId(reward.id)
+                        setRewardForm({
+                          title: reward.title,
+                          description: isLockedText(reward.description) ? '' : reward.description,
+                          categoryId: reward.categoryId ?? '',
+                          pointCost: reward.pointCost,
+                        })
+                      }}
+                      onApply={
+                        reward.status === 'active'
+                          ? () =>
+                              void applyRewardManually({
+                                relationshipId: activeRelationship.id,
+                                rewardId: reward.id,
+                                targetUserId,
+                                appliedByUserId: user.id,
+                                note: applyNote,
+                              }).then(refresh)
+                          : undefined
+                      }
+                      onArchive={
+                        reward.status === 'active'
+                          ? () => void archiveReward(activeRelationship.id, reward.id).then(refresh)
+                          : undefined
+                      }
+                      onRestore={
+                        reward.status === 'archived'
+                          ? () => void restoreReward(activeRelationship.id, reward.id).then(refresh)
+                          : undefined
+                      }
+                    />
+                  )
+                })
               )}
             </ul>
           </div>
@@ -410,55 +414,55 @@ export function RewardsPage() {
               {visiblePunishments.length === 0 ? (
                 <li className="text-sm text-stone-500">No punishments yet.</li>
               ) : (
-                visiblePunishments.map((punishment) => (
-                  <CatalogCard
-                    key={punishment.id}
-                    title={punishment.title}
-                    description={punishment.description}
-                    footer={`severity ${punishment.severity}`}
-                    status={punishment.status}
-                    locked={isLockedText(punishment.description)}
-                    onEdit={() => {
-                      setPunishmentEditingId(punishment.id)
-                      setPunishmentForm({
-                        title: punishment.title,
-                        description: isLockedText(punishment.description)
-                          ? ''
-                          : punishment.description,
-                        categoryId: punishment.categoryId ?? '',
-                        severity: punishment.severity,
-                      })
-                    }}
-                    onApply={
-                      punishment.status === 'active'
-                        ? () =>
-                            void applyPunishmentManually({
-                              relationshipId: activeRelationship.id,
-                              punishmentId: punishment.id,
-                              targetUserId,
-                              appliedByUserId: user.id,
-                              note: applyNote,
-                            }).then(refresh)
-                        : undefined
-                    }
-                    onArchive={
-                      punishment.status === 'active'
-                        ? () =>
-                            void archivePunishment(activeRelationship.id, punishment.id).then(
-                              refresh,
-                            )
-                        : undefined
-                    }
-                    onRestore={
-                      punishment.status === 'archived'
-                        ? () =>
-                            void restorePunishment(activeRelationship.id, punishment.id).then(
-                              refresh,
-                            )
-                        : undefined
-                    }
-                  />
-                ))
+                visiblePunishments.map((punishment) => {
+                  const category =
+                    punishment.categoryId ? categories.find((c) => c.id === punishment.categoryId) : undefined
+                  return (
+                    <CatalogCard
+                      key={punishment.id}
+                      title={punishment.title}
+                      description={punishment.description}
+                      footer={`severity ${punishment.severity}`}
+                      status={punishment.status}
+                      categoryLabel={category?.label}
+                      categoryColor={category?.color}
+                      locked={isLockedText(punishment.description)}
+                      onEdit={() => {
+                        setPunishmentEditingId(punishment.id)
+                        setPunishmentForm({
+                          title: punishment.title,
+                          description: isLockedText(punishment.description)
+                            ? ''
+                            : punishment.description,
+                          categoryId: punishment.categoryId ?? '',
+                          severity: punishment.severity,
+                        })
+                      }}
+                      onApply={
+                        punishment.status === 'active'
+                          ? () =>
+                              void applyPunishmentManually({
+                                relationshipId: activeRelationship.id,
+                                punishmentId: punishment.id,
+                                targetUserId,
+                                appliedByUserId: user.id,
+                                note: applyNote,
+                              }).then(refresh)
+                          : undefined
+                      }
+                      onArchive={
+                        punishment.status === 'active'
+                          ? () => void archivePunishment(activeRelationship.id, punishment.id).then(refresh)
+                          : undefined
+                      }
+                      onRestore={
+                        punishment.status === 'archived'
+                          ? () => void restorePunishment(activeRelationship.id, punishment.id).then(refresh)
+                          : undefined
+                      }
+                    />
+                  )
+                })
               )}
             </ul>
           </div>
@@ -489,7 +493,21 @@ export function RewardsPage() {
                     {by?.displayName ?? 'Unknown'} ·{' '}
                     {formatLocalDateKey(entry.appliedAt.slice(0, 10))}
                   </p>
-                  {entry.note ? <p className="mt-1 text-stone-400">{entry.note}</p> : null}
+                  {entry.note ? (
+                    isLockedText(entry.note) ? (
+                      <div className="mt-1">
+                        <p className="text-stone-400">{entry.note}</p>
+                        <NavLink
+                          to="/settings"
+                          className="mt-1 block text-xs text-rose-400 hover:text-rose-300"
+                        >
+                          Unlock note in Settings
+                        </NavLink>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-stone-400">{entry.note}</p>
+                    )
+                  ) : null}
                 </li>
               )
             })}
@@ -506,6 +524,8 @@ function CatalogCard(props: {
   description: string
   footer: string
   status: 'active' | 'archived'
+  categoryLabel?: string
+  categoryColor?: string
   locked: boolean
   onEdit: () => void
   onApply?: () => void
@@ -516,6 +536,17 @@ function CatalogCard(props: {
     <li className="rounded-md border border-stone-800 bg-stone-950/40 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-medium text-stone-100">{props.title}</p>
+        {props.categoryLabel ? (
+          <span className="inline-flex items-center gap-1 rounded-md border border-stone-700 px-2 py-0.5 text-[11px] text-stone-300">
+            {props.categoryColor ? (
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ backgroundColor: props.categoryColor }}
+              />
+            ) : null}
+            {props.categoryLabel}
+          </span>
+        ) : null}
         {props.status === 'archived' ? (
           <span className="text-xs text-stone-500">Archived</span>
         ) : null}

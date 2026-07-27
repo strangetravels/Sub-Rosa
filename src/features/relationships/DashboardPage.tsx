@@ -18,7 +18,7 @@ import { ruleNeedsAcknowledgmentFrom } from '@/features/rules/ruleLogic'
 import { useRulesData } from '@/features/rules/useRulesData'
 import { hasHabitMissPunishment } from '@/features/rewards/rewardService'
 import { useRewardsData } from '@/features/rewards/useRewardsData'
-import { toLocalDateKey } from '@/lib/date'
+import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 
 export function DashboardPage() {
   const { user } = useAuth()
@@ -27,9 +27,11 @@ export function DashboardPage() {
   const { habits, categories, completions, loading, refresh } = useHabitsData(
     activeRelationship?.id,
   )
-  const { history, refresh: refreshRewards } = useRewardsData(activeRelationship?.id, {
-    includeArchived: false,
-  })
+  const {
+    history,
+    refresh: refreshRewards,
+    loading: rewardsLoading,
+  } = useRewardsData(activeRelationship?.id, { includeArchived: false })
   const { rules, acknowledgments, loading: rulesLoading } = useRulesData(activeRelationship?.id)
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
@@ -46,6 +48,11 @@ export function DashboardPage() {
           ruleNeedsAcknowledgmentFrom(rule, user.id, myMember.role, acknowledgments),
         )
       : []
+  const recentCatalogEntries = user
+    ? history
+        .filter((e) => (!assignedToMeOnly ? true : e.targetUserId === user.id))
+        .slice(0, 3)
+    : []
 
   return (
     <section className="mx-auto max-w-2xl space-y-8">
@@ -107,6 +114,36 @@ export function DashboardPage() {
               </p>
             )}
           </div>
+
+          {rewardsLoading ? null : recentCatalogEntries.length > 0 ? (
+            <div className="mb-4 rounded-lg border border-stone-700 bg-stone-900/50 p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-stone-500">
+                Recent rewards & punishments
+              </p>
+              <ul className="mt-2 space-y-1">
+                {recentCatalogEntries.map((entry) => {
+                  const target = activeRelationship.members.find(
+                    (m) => m.userId === entry.targetUserId,
+                  )
+                  const by = activeRelationship.members.find(
+                    (m) => m.userId === entry.appliedByUserId,
+                  )
+                  return (
+                    <li key={entry.id} className="rounded border border-stone-800 bg-stone-950/30 p-2">
+                      <p className="text-stone-200">
+                        {entry.itemType === 'reward' ? 'Reward' : 'Punishment'}: {entry.itemTitle}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {entry.source} · {target?.displayName ?? 'Unknown target'} · by{' '}
+                        {by?.displayName ?? 'Unknown'} ·{' '}
+                        {formatLocalDateKey(entry.appliedAt.slice(0, 10))}
+                      </p>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-medium text-stone-200">Today</h3>
