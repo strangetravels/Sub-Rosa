@@ -39,3 +39,16 @@ export function countPendingAcknowledgments(
     ruleNeedsAcknowledgmentFrom(rule, userId, member.role, acknowledgments),
   ).length
 }
+
+export const RULE_BODY_LOCKED = '[Unlock encryption key in Settings to read this rule.]'
+export const RULE_VERSION_LOCKED =
+  '[Unlock encryption key in Settings to read this version.]'
+export const RULE_BODY_DECRYPT_FAILED = '[Unable to decrypt rule text on this device.]'
+
+export function isLockedRuleBody(body: string): boolean {
+  return (
+    body === RULE_BODY_LOCKED ||
+    body === RULE_VERSION_LOCKED ||
+    body === RULE_BODY_DECRYPT_FAILED
+  )
+}

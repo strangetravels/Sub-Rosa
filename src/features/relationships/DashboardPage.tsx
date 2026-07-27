@@ -11,6 +11,8 @@ import {
   weeklyCompletionCount,
 } from '@/features/habits/habitLogic'
 import { useHabitsData } from '@/features/habits/useHabitsData'
+import { ruleNeedsAcknowledgmentFrom } from '@/features/rules/ruleLogic'
+import { useRulesData } from '@/features/rules/useRulesData'
 import { toLocalDateKey } from '@/lib/date'
 
 export function DashboardPage() {
@@ -20,6 +22,7 @@ export function DashboardPage() {
   const { habits, categories, completions, loading, refresh } = useHabitsData(
     activeRelationship?.id,
   )
+  const { rules, acknowledgments, loading: rulesLoading } = useRulesData(activeRelationship?.id)
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
   const todayKey = toLocalDateKey()
@@ -29,6 +32,12 @@ export function DashboardPage() {
     return true
   })
   const sortedToday = [...todaysHabits].sort((a, b) => a.title.localeCompare(b.title))
+  const pendingRuleAcks =
+    user && myMember
+      ? rules.filter((rule) =>
+          ruleNeedsAcknowledgmentFrom(rule, user.id, myMember.role, acknowledgments),
+        )
+      : []
 
   return (
     <section className="mx-auto max-w-2xl space-y-8">
@@ -66,6 +75,29 @@ export function DashboardPage() {
 
       {activeRelationship && user ? (
         <div>
+          <div className="mb-4 rounded-lg border border-amber-900/50 bg-amber-950/20 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-amber-200">Rule acknowledgments</p>
+              <NavLink to="/rules" className="text-xs text-amber-300 hover:text-amber-200">
+                Open rules
+              </NavLink>
+            </div>
+            {rulesLoading ? (
+              <p className="mt-1 text-xs text-stone-400">Checking…</p>
+            ) : pendingRuleAcks.length > 0 ? (
+              <p className="mt-1 text-xs text-amber-300">
+                {pendingRuleAcks.length} pending:{' '}
+                {pendingRuleAcks
+                  .slice(0, 2)
+                  .map((r) => r.title)
+                  .join(', ')}
+                {pendingRuleAcks.length > 2 ? '…' : ''}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-emerald-300">All required acknowledgments are up to date.</p>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-medium text-stone-200">Today</h3>
             <div className="flex items-center gap-3">

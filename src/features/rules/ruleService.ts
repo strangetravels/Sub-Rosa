@@ -8,11 +8,19 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
+import { getUnlockedContentKey } from '@/features/crypto/cryptoService'
 import { getFirebaseDb } from '@/lib/firebase/app'
 import { isDemoMode } from '@/lib/firebase/config'
 import { createId } from '@/lib/id'
 import { readDemoState, updateDemoState } from '@/lib/demo/store'
+import { decryptText, encryptText } from '@/lib/crypto'
+import {
+  RULE_BODY_DECRYPT_FAILED,
+  RULE_BODY_LOCKED,
+  RULE_VERSION_LOCKED,
+} from '@/features/rules/ruleLogic'
 import type {
+  EncryptedTextRecord,
   Rule,
   RuleAcknowledgment,
   RuleCategory,
@@ -126,19 +134,21 @@ export async function listRules(
 ): Promise<Rule[]> {
   const includeArchived = options?.includeArchived ?? false
   if (isDemoMode()) {
-    return readDemoState()
+    const rows = readDemoState()
       .rules.filter((r) => r.relationshipId === relationshipId)
       .filter((r) => includeArchived || r.status === 'active')
       .sort((a, b) => a.title.localeCompare(b.title))
+    return Promise.all(rows.map((row) => hydrateRuleForRead(row)))
   }
 
   const db = getFirebaseDb()
   if (!db) return []
   const snap = await getDocs(collection(db, 'relationships', relationshipId, 'rules'))
-  return snap.docs
+  const rows = snap.docs
     .map((d) => d.data() as Rule)
     .filter((r) => includeArchived || r.status === 'active')
     .sort((a, b) => a.title.localeCompare(b.title))
+  return Promise.all(rows.map((row) => hydrateRuleForRead(row)))
 }
 
 export async function listRuleVersions(
@@ -146,9 +156,10 @@ export async function listRuleVersions(
   ruleId: string,
 ): Promise<RuleVersion[]> {
   if (isDemoMode()) {
-    return readDemoState()
+    const rows = readDemoState()
       .ruleVersions.filter((v) => v.relationshipId === relationshipId && v.ruleId === ruleId)
       .sort((a, b) => b.version - a.version)
+    return Promise.all(rows.map((row) => hydrateVersionForRead(row)))
   }
 
   const db = getFirebaseDb()
@@ -159,7 +170,10 @@ export async function listRuleVersions(
       where('ruleId', '==', ruleId),
     ),
   )
-  return snap.docs.map((d) => d.data() as RuleVersion).sort((a, b) => b.version - a.version)
+  const rows = snap.docs
+    .map((d) => d.data() as RuleVersion)
+    .sort((a, b) => b.version - a.version)
+  return Promise.all(rows.map((row) => hydrateVersionForRead(row)))
 }
 
 export async function listRuleAcknowledgments(
@@ -190,7 +204,9 @@ function buildVersion(input: {
   body: string
   categoryId: string | null
   requiresAcknowledgment: boolean
+  linkedPunishmentId?: string | null
   editedByUserId: string
+  bodyCiphertext?: EncryptedTextRecord
   changeNote?: string
 }): RuleVersion {
   return {
@@ -200,9 +216,10 @@ function buildVersion(input: {
     version: input.version,
     title: input.title,
     body: input.body,
+    bodyCiphertext: input.bodyCiphertext,
     categoryId: input.categoryId,
     requiresAcknowledgment: input.requiresAcknowledgment,
-    linkedPunishmentId: null,
+    linkedPunishmentId: input.linkedPunishmentId ?? null,
     editedByUserId: input.editedByUserId,
     editedAt: new Date().toISOString(),
     changeNote: input.changeNote?.trim() || undefined,
@@ -215,6 +232,7 @@ export type CreateRuleInput = {
   body: string
   categoryId?: string | null
   requiresAcknowledgment?: boolean
+  linkedPunishmentId?: string | null
   createdByUserId: string
 }
 
@@ -226,14 +244,17 @@ export async function createRule(input: CreateRuleInput): Promise<Rule> {
 
   const now = new Date().toISOString()
   const ruleId = createId('rule')
+  const bodyStorage = await encodeRuleBodyForStorage(input.relationshipId, body)
   const version = buildVersion({
     ruleId,
     relationshipId: input.relationshipId,
     version: 1,
     title,
-    body,
+    body: bodyStorage.body,
+    bodyCiphertext: bodyStorage.bodyCiphertext,
     categoryId: input.categoryId ?? null,
     requiresAcknowledgment: input.requiresAcknowledgment ?? true,
+    linkedPunishmentId: input.linkedPunishmentId ?? null,
     editedByUserId: input.createdByUserId,
     changeNote: 'Initial version',
   })
@@ -242,10 +263,11 @@ export async function createRule(input: CreateRuleInput): Promise<Rule> {
     id: ruleId,
     relationshipId: input.relationshipId,
     title,
-    body,
+    body: bodyStorage.body,
+    bodyCiphertext: bodyStorage.bodyCiphertext,
     categoryId: input.categoryId ?? null,
     requiresAcknowledgment: version.requiresAcknowledgment,
-    linkedPunishmentId: null,
+    linkedPunishmentId: input.linkedPunishmentId ?? null,
     currentVersion: 1,
     status: 'active',
     createdByUserId: input.createdByUserId,
@@ -260,7 +282,7 @@ export async function createRule(input: CreateRuleInput): Promise<Rule> {
       ruleVersions: [...state.ruleVersions, version],
     }))
     notifyDemoRulesChanged()
-    return rule
+    return hydrateRuleForRead(rule)
   }
 
   const db = getFirebaseDb()
@@ -270,7 +292,7 @@ export async function createRule(input: CreateRuleInput): Promise<Rule> {
     doc(db, 'relationships', rule.relationshipId, 'ruleVersions', version.id),
     version,
   )
-  return rule
+  return hydrateRuleForRead(rule)
 }
 
 export type UpdateRuleInput = {
@@ -278,6 +300,7 @@ export type UpdateRuleInput = {
   body?: string
   categoryId?: string | null
   requiresAcknowledgment?: boolean
+  linkedPunishmentId?: string | null
   changeNote?: string
   editedByUserId: string
 }
@@ -294,30 +317,51 @@ export async function updateRule(
       const rules = state.rules.map((r) => {
         if (r.id !== ruleId || r.relationshipId !== relationshipId) return r
         const title = patch.title !== undefined ? patch.title.trim() || r.title : r.title
-        const body = patch.body !== undefined ? patch.body.trim() || r.body : r.body
+        const bodyPlain =
+          patch.body !== undefined ? patch.body.trim() || '' : r.body || ''
+        if (!bodyPlain && !r.bodyCiphertext) {
+          throw new Error('Rule text is required.')
+        }
+        if (!bodyPlain && r.bodyCiphertext) {
+          throw new Error('Unlock the relationship to edit encrypted rule text.')
+        }
+        const bodyStorage = bodyPlain
+          ? ({ body: bodyPlain, bodyCiphertext: r.bodyCiphertext } satisfies {
+              body: string
+              bodyCiphertext?: EncryptedTextRecord
+            })
+          : { body: r.body, bodyCiphertext: r.bodyCiphertext }
         const categoryId = patch.categoryId !== undefined ? patch.categoryId : r.categoryId
         const requiresAcknowledgment =
           patch.requiresAcknowledgment !== undefined
             ? patch.requiresAcknowledgment
             : r.requiresAcknowledgment
+        const linkedPunishmentId =
+          patch.linkedPunishmentId !== undefined
+            ? patch.linkedPunishmentId
+            : r.linkedPunishmentId ?? null
         const nextVersionNumber = r.currentVersion + 1
         nextVersion = buildVersion({
           ruleId,
           relationshipId,
           version: nextVersionNumber,
           title,
-          body,
+          body: bodyStorage.body,
+          bodyCiphertext: bodyStorage.bodyCiphertext,
           categoryId,
           requiresAcknowledgment,
+          linkedPunishmentId,
           editedByUserId: patch.editedByUserId,
           changeNote: patch.changeNote,
         })
         updated = {
           ...r,
           title,
-          body,
+          body: bodyStorage.body,
+          bodyCiphertext: bodyStorage.bodyCiphertext,
           categoryId,
           requiresAcknowledgment,
+          linkedPunishmentId,
           currentVersion: nextVersionNumber,
           updatedAt: new Date().toISOString(),
         }
@@ -331,7 +375,7 @@ export async function updateRule(
     })
     notifyDemoRulesChanged()
     if (!updated) throw new Error('Rule not found.')
-    return updated
+    return hydrateRuleForRead(updated)
   }
 
   const db = getFirebaseDb()
@@ -339,24 +383,33 @@ export async function updateRule(
   const ref = doc(db, 'relationships', relationshipId, 'rules', ruleId)
   const snap = await getDoc(ref)
   if (!snap.exists()) throw new Error('Rule not found.')
-  const current = snap.data() as Rule
+  const currentStored = snap.data() as Rule
+  const current = await hydrateRuleForRead(currentStored)
 
   const title = patch.title !== undefined ? patch.title.trim() || current.title : current.title
-  const body = patch.body !== undefined ? patch.body.trim() || current.body : current.body
+  const bodyInput = patch.body !== undefined ? patch.body.trim() : current.body
+  if (!bodyInput) throw new Error('Rule text is required.')
+  const bodyStorage = await encodeRuleBodyForStorage(relationshipId, bodyInput)
   const categoryId = patch.categoryId !== undefined ? patch.categoryId : current.categoryId
   const requiresAcknowledgment =
     patch.requiresAcknowledgment !== undefined
       ? patch.requiresAcknowledgment
       : current.requiresAcknowledgment
+  const linkedPunishmentId =
+    patch.linkedPunishmentId !== undefined
+      ? patch.linkedPunishmentId
+      : current.linkedPunishmentId ?? null
   const nextVersionNumber = current.currentVersion + 1
   const version = buildVersion({
     ruleId,
     relationshipId,
     version: nextVersionNumber,
     title,
-    body,
+    body: bodyStorage.body,
+    bodyCiphertext: bodyStorage.bodyCiphertext,
     categoryId,
     requiresAcknowledgment,
+    linkedPunishmentId,
     editedByUserId: patch.editedByUserId,
     changeNote: patch.changeNote,
   })
@@ -364,9 +417,11 @@ export async function updateRule(
   const updated: Rule = {
     ...current,
     title,
-    body,
+    body: bodyStorage.body,
+    bodyCiphertext: bodyStorage.bodyCiphertext,
     categoryId,
     requiresAcknowledgment,
+    linkedPunishmentId,
     currentVersion: nextVersionNumber,
     updatedAt: new Date().toISOString(),
   }
@@ -378,12 +433,14 @@ export async function updateRule(
   await updateDoc(ref, {
     title: updated.title,
     body: updated.body,
+    bodyCiphertext: updated.bodyCiphertext ?? null,
     categoryId: updated.categoryId,
     requiresAcknowledgment: updated.requiresAcknowledgment,
+    linkedPunishmentId: updated.linkedPunishmentId ?? null,
     currentVersion: updated.currentVersion,
     updatedAt: updated.updatedAt,
   })
-  return updated
+  return hydrateRuleForRead(updated)
 }
 
 export async function archiveRule(relationshipId: string, ruleId: string): Promise<Rule> {
@@ -463,4 +520,42 @@ export async function acknowledgeRule(input: {
     ack,
   )
   return ack
+}
+
+async function encodeRuleBodyForStorage(
+  relationshipId: string,
+  body: string,
+): Promise<{ body: string; bodyCiphertext?: EncryptedTextRecord }> {
+  const key = await getUnlockedContentKey(relationshipId)
+  if (!key) return { body }
+  const ciphertext = await encryptText(key, body)
+  return { body: '', bodyCiphertext: ciphertext }
+}
+
+async function hydrateRuleForRead(rule: Rule): Promise<Rule> {
+  if (!rule.bodyCiphertext) return rule
+  const key = await getUnlockedContentKey(rule.relationshipId)
+  if (!key) {
+    return { ...rule, body: RULE_BODY_LOCKED }
+  }
+  try {
+    const body = await decryptText(key, rule.bodyCiphertext)
+    return { ...rule, body }
+  } catch {
+    return { ...rule, body: RULE_BODY_DECRYPT_FAILED }
+  }
+}
+
+async function hydrateVersionForRead(version: RuleVersion): Promise<RuleVersion> {
+  if (!version.bodyCiphertext) return version
+  const key = await getUnlockedContentKey(version.relationshipId)
+  if (!key) {
+    return { ...version, body: RULE_VERSION_LOCKED }
+  }
+  try {
+    const body = await decryptText(key, version.bodyCiphertext)
+    return { ...version, body }
+  } catch {
+    return { ...version, body: RULE_BODY_DECRYPT_FAILED }
+  }
 }

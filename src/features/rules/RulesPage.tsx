@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
+import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
 import {
+  isLockedRuleBody,
   ruleNeedsAcknowledgmentFrom,
 } from '@/features/rules/ruleLogic'
 import {
@@ -33,6 +35,7 @@ function emptyForm() {
     body: '',
     categoryId: '' as string,
     requiresAcknowledgment: true,
+    linkedPunishmentId: '',
     changeNote: '',
   }
 }
@@ -85,6 +88,7 @@ export function RulesPage() {
       body: rule.body,
       categoryId: rule.categoryId ?? '',
       requiresAcknowledgment: rule.requiresAcknowledgment,
+      linkedPunishmentId: rule.linkedPunishmentId ?? '',
       changeNote: '',
     })
     setError(null)
@@ -101,6 +105,7 @@ export function RulesPage() {
           body: form.body,
           categoryId: form.categoryId || null,
           requiresAcknowledgment: form.requiresAcknowledgment,
+          linkedPunishmentId: form.linkedPunishmentId || null,
           changeNote: form.changeNote,
           editedByUserId: user.id,
         })
@@ -111,6 +116,7 @@ export function RulesPage() {
           body: form.body,
           categoryId: form.categoryId || null,
           requiresAcknowledgment: form.requiresAcknowledgment,
+          linkedPunishmentId: form.linkedPunishmentId || null,
           createdByUserId: user.id,
         })
       }
@@ -291,6 +297,19 @@ export function RulesPage() {
           Require partner acknowledgment after changes
         </label>
 
+        <label className="mt-3 block text-sm text-stone-300">
+          Default consequence ID (optional)
+          <input
+            className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+            value={form.linkedPunishmentId}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, linkedPunishmentId: e.target.value }))
+            }
+            placeholder="punish_..."
+            maxLength={80}
+          />
+        </label>
+
         {editingId ? (
           <label className="mt-3 block text-sm text-stone-300">
             Change note
@@ -399,12 +418,23 @@ export function RulesPage() {
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-stone-300">{rule.body}</p>
+                      <div className="mt-2">
+                        <p className="whitespace-pre-wrap text-sm text-stone-300">{rule.body}</p>
+                        {isLockedRuleBody(rule.body) ? (
+                          <NavLink
+                            to="/settings"
+                            className="mt-1 inline-block text-xs text-rose-400 hover:text-rose-300"
+                          >
+                            Unlock in Settings
+                          </NavLink>
+                        ) : null}
+                      </div>
                       <p className="mt-2 text-xs text-stone-500">
                         {category?.label ?? 'Uncategorized'}
                         {' · '}
                         by {creator?.displayName ?? 'Unknown'}
                         {rule.requiresAcknowledgment ? ' · acknowledgment required' : ''}
+                        {rule.linkedPunishmentId ? ` · default consequence ${rule.linkedPunishmentId}` : ''}
                       </p>
                     </div>
                     {needsAck ? (
@@ -468,6 +498,11 @@ export function RulesPage() {
                             const editor = activeRelationship.members.find(
                               (m) => m.userId === version.editedByUserId,
                             )
+                            const ackRequiredMembers = activeRelationship.members.filter(
+                              (m) =>
+                                version.requiresAcknowledgment &&
+                                (m.role === 'submissive' || m.role === 'switch'),
+                            )
                             return (
                               <li
                                 key={version.id}
@@ -487,10 +522,43 @@ export function RulesPage() {
                                 <p className="mt-1 whitespace-pre-wrap text-stone-400">
                                   {version.body}
                                 </p>
+                                {isLockedRuleBody(version.body) ? (
+                                  <NavLink
+                                    to="/settings"
+                                    className="mt-1 inline-block text-xs text-rose-400 hover:text-rose-300"
+                                  >
+                                    Unlock in Settings
+                                  </NavLink>
+                                ) : null}
                                 {version.changeNote ? (
                                   <p className="mt-2 text-xs text-stone-500">
                                     Note: {version.changeNote}
                                   </p>
+                                ) : null}
+                                {ackRequiredMembers.length > 0 ? (
+                                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                    {ackRequiredMembers.map((member) => {
+                                      const acknowledged = acknowledgments.some(
+                                        (a) =>
+                                          a.ruleId === rule.id &&
+                                          a.version === version.version &&
+                                          a.userId === member.userId,
+                                      )
+                                      return (
+                                        <span
+                                          key={`${version.id}-${member.userId}`}
+                                          className={[
+                                            'rounded px-1.5 py-0.5',
+                                            acknowledged
+                                              ? 'bg-emerald-950/50 text-emerald-300'
+                                              : 'bg-amber-950/50 text-amber-300',
+                                          ].join(' ')}
+                                        >
+                                          {member.displayName}: {acknowledged ? 'acknowledged' : 'pending'}
+                                        </span>
+                                      )
+                                    })}
+                                  </div>
                                 ) : null}
                               </li>
                             )

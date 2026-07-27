@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   countPendingAcknowledgments,
   hasAcknowledgedVersion,
+  isLockedRuleBody,
   memberMustAcknowledgeRule,
+  RULE_BODY_DECRYPT_FAILED,
+  RULE_BODY_LOCKED,
+  RULE_VERSION_LOCKED,
   ruleNeedsAcknowledgmentFrom,
 } from '@/features/rules/ruleLogic'
 import type { Rule, RuleAcknowledgment } from '@/types/models'
@@ -56,5 +60,12 @@ describe('ruleLogic', () => {
       displayName: 'Sub',
     }, [])
     expect(count).toBe(1)
+  })
+
+  it('detects locked rule body placeholders', () => {
+    expect(isLockedRuleBody(RULE_BODY_LOCKED)).toBe(true)
+    expect(isLockedRuleBody(RULE_VERSION_LOCKED)).toBe(true)
+    expect(isLockedRuleBody(RULE_BODY_DECRYPT_FAILED)).toBe(true)
+    expect(isLockedRuleBody('Be home by ten.')).toBe(false)
   })
 })

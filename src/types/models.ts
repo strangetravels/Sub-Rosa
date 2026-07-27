@@ -22,6 +22,11 @@ export type WrappedKeyRecord = {
   ciphertextB64: string
 }
 
+export type EncryptedTextRecord = {
+  ivB64: string
+  ciphertextB64: string
+}
+
 export type SealedKeyRecord = {
   ivB64: string
   ciphertextB64: string
@@ -110,6 +115,7 @@ export type Rule = {
   relationshipId: string
   title: string
   body: string
+  bodyCiphertext?: EncryptedTextRecord
   categoryId: string | null
   requiresAcknowledgment: boolean
   /** Reserved for punishments feature branch. */
@@ -128,6 +134,7 @@ export type RuleVersion = {
   version: number
   title: string
   body: string
+  bodyCiphertext?: EncryptedTextRecord
   categoryId: string | null
   requiresAcknowledgment: boolean
   linkedPunishmentId?: string | null

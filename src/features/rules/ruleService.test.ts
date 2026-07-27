@@ -42,18 +42,22 @@ describe('ruleService', () => {
       body: 'Send a goodnight message before bed.',
       categoryId: custom.id,
       requiresAcknowledgment: true,
+      linkedPunishmentId: 'punish_late_checkin',
       createdByUserId: dom.id,
     })
     expect(created.currentVersion).toBe(1)
+    expect(created.linkedPunishmentId).toBe('punish_late_checkin')
 
     const updated = await updateRule(relationship.id, created.id, {
       title: 'Check in nightly (updated)',
       body: 'Send a goodnight message before 10pm.',
       changeNote: 'Clarified timing',
+      linkedPunishmentId: 'punish_repeat',
       editedByUserId: dom.id,
     })
     expect(updated.currentVersion).toBe(2)
     expect(updated.title).toContain('updated')
+    expect(updated.linkedPunishmentId).toBe('punish_repeat')
 
     const versions = await listRuleVersions(relationship.id, created.id)
     expect(versions).toHaveLength(2)
