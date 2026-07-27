@@ -30,23 +30,25 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [relationships, setRelationships] = useState<Relationship[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [hydratedForUserId, setHydratedForUserId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) {
       setRelationships([])
       setActiveId(null)
-      setLoading(false)
+      setHydratedForUserId(null)
       return
     }
 
-    setLoading(true)
+    setHydratedForUserId(null)
     return subscribeToRelationships(user.id, (list, nextActiveId) => {
       setRelationships(list)
       setActiveId(nextActiveId)
-      setLoading(false)
+      setHydratedForUserId(user.id)
     })
   }, [user])
+
+  const loading = Boolean(user) && hydratedForUserId !== user?.id
 
   const activeRelationship = useMemo(
     () => relationships.find((r) => r.id === activeId) ?? null,
@@ -71,6 +73,7 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
           return [...prev, created]
         })
         setActiveId(created.id)
+        setHydratedForUserId(user.id)
         return created
       },
       async joinRelationship(inviteCode, role) {
@@ -81,6 +84,7 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
           return [...without, joined]
         })
         setActiveId(joined.id)
+        setHydratedForUserId(user.id)
         return joined
       },
     }),
