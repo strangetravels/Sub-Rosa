@@ -1,0 +1,19 @@
+import '@testing-library/jest-dom/vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
+import { cleanup } from '@testing-library/react'
+
+beforeEach(() => {
+  vi.stubEnv('VITE_DEMO_MODE', 'true')
+  vi.stubEnv('VITE_FIREBASE_API_KEY', '')
+  vi.stubEnv('VITE_FIREBASE_AUTH_DOMAIN', '')
+  vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '')
+  vi.stubEnv('VITE_FIREBASE_APP_ID', '')
+  localStorage.clear()
+})
+
+afterEach(() => {
+  cleanup()
+  localStorage.clear()
+  vi.unstubAllEnvs()
+  vi.restoreAllMocks()
+})
