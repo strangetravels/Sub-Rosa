@@ -22,10 +22,11 @@ function renderDashboard() {
 describe('DashboardPage', () => {
   it('shows active relationship details and invite code when unpaired', async () => {
     const user = await signUp('dash@example.com', 'secret123', 'Dash')
-    const rel = await createRelationship({
+    const { relationship: rel } = await createRelationship({
       user,
       name: 'Dashboard Dynamic',
       role: 'dominant',
+      passphrase: 'encrypt-me-please',
     })
 
     renderDashboard()

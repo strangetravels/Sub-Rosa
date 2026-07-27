@@ -24,7 +24,7 @@ function RelationshipProbe() {
       <button
         type="button"
         onClick={() => {
-          void createRelationship('From Context', 'dominant')
+          void createRelationship('From Context', 'dominant', 'encrypt-me-please')
         }}
       >
         Create
@@ -33,7 +33,7 @@ function RelationshipProbe() {
         type="button"
         onClick={() => {
           const code = relationships[0]?.inviteCode
-          if (code) void joinRelationship(code, 'submissive')
+          if (code) void joinRelationship(code, 'submissive', 'encrypt-me-please-b')
         }}
       >
         Rejoin

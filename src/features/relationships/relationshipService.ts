@@ -12,7 +12,16 @@ import { getFirebaseDb } from '@/lib/firebase/app'
 import { isDemoMode } from '@/lib/firebase/config'
 import { createId, createInviteCode } from '@/lib/id'
 import { readDemoState, updateDemoState } from '@/lib/demo/store'
-import type { Relationship, RelationshipRole, UserProfile } from '@/types/models'
+import {
+  acceptRelationshipCrypto,
+  bootstrapRelationshipCrypto,
+} from '@/features/crypto/cryptoService'
+import type {
+  Relationship,
+  RelationshipCrypto,
+  RelationshipRole,
+  UserProfile,
+} from '@/types/models'
 
 const ACTIVE_KEY = 'subrosa.activeRelationshipId'
 
@@ -22,6 +31,57 @@ export function notifyDemoRelationshipsChanged(): void {
 
 function memberIds(relationship: Relationship): string[] {
   return relationship.members.map((m) => m.userId)
+}
+
+async function persistRelationship(relationship: Relationship): Promise<void> {
+  if (isDemoMode()) {
+    updateDemoState((state) => {
+      const relationships = [...state.relationships]
+      const idx = relationships.findIndex((r) => r.id === relationship.id)
+      if (idx >= 0) relationships[idx] = relationship
+      else relationships.push(relationship)
+      return { ...state, relationships }
+    })
+    notifyDemoRelationshipsChanged()
+    return
+  }
+
+  const db = getFirebaseDb()
+  if (!db) throw new Error('Firestore is not configured.')
+  await setDoc(
+    doc(db, 'relationships', relationship.id),
+    {
+      ...relationship,
+      memberIds: memberIds(relationship),
+    },
+    { merge: true },
+  )
+}
+
+export async function updateRelationshipCrypto(
+  relationshipId: string,
+  crypto: RelationshipCrypto,
+): Promise<Relationship> {
+  if (isDemoMode()) {
+    let updated: Relationship | null = null
+    updateDemoState((state) => {
+      const relationships = state.relationships.map((rel) => {
+        if (rel.id !== relationshipId) return rel
+        updated = { ...rel, crypto }
+        return updated
+      })
+      return { ...state, relationships }
+    })
+    notifyDemoRelationshipsChanged()
+    if (!updated) throw new Error('Relationship not found.')
+    return updated
+  }
+
+  const db = getFirebaseDb()
+  if (!db) throw new Error('Firestore is not configured.')
+  await updateDoc(doc(db, 'relationships', relationshipId), { crypto })
+  const snap = await getDoc(doc(db, 'relationships', relationshipId))
+  return snap.data() as Relationship
 }
 
 export async function listRelationshipsForUser(userId: string): Promise<Relationship[]> {
@@ -38,13 +98,26 @@ export async function listRelationshipsForUser(userId: string): Promise<Relation
   return snap.docs.map((d) => d.data() as Relationship)
 }
 
+export type CreateRelationshipResult = {
+  relationship: Relationship
+  recoveryPhrase: string
+}
+
 export async function createRelationship(input: {
   user: UserProfile
   name: string
   role: RelationshipRole
-}): Promise<Relationship> {
+  passphrase: string
+}): Promise<CreateRelationshipResult> {
+  const relationshipId = createId('rel')
+  const secure = await bootstrapRelationshipCrypto({
+    relationshipId,
+    user: input.user,
+    passphrase: input.passphrase,
+  })
+
   const relationship: Relationship = {
-    id: createId('rel'),
+    id: relationshipId,
     name: input.name.trim() || 'Our dynamic',
     status: 'active',
     members: [
@@ -57,6 +130,7 @@ export async function createRelationship(input: {
     inviteCode: createInviteCode(),
     createdAt: new Date().toISOString(),
     createdBy: input.user.id,
+    crypto: secure.crypto,
   }
 
   if (isDemoMode()) {
@@ -70,7 +144,7 @@ export async function createRelationship(input: {
     }))
     localStorage.setItem(ACTIVE_KEY, relationship.id)
     notifyDemoRelationshipsChanged()
-    return relationship
+    return { relationship, recoveryPhrase: secure.recoveryPhrase }
   }
 
   const db = getFirebaseDb()
@@ -81,15 +155,24 @@ export async function createRelationship(input: {
     memberIds: memberIds(relationship),
   })
   localStorage.setItem(ACTIVE_KEY, relationship.id)
-  return relationship
+  return { relationship, recoveryPhrase: secure.recoveryPhrase }
+}
+
+export type JoinRelationshipResult = {
+  relationship: Relationship
+  safetyNumber: string
+  awaitingKeyDelivery: boolean
 }
 
 export async function joinRelationshipByInvite(input: {
   user: UserProfile
   inviteCode: string
   role: RelationshipRole
-}): Promise<Relationship> {
+  passphrase: string
+}): Promise<JoinRelationshipResult> {
   const code = input.inviteCode.trim().toUpperCase()
+
+  let joined: Relationship
 
   if (isDemoMode()) {
     const state = readDemoState()
@@ -97,7 +180,6 @@ export async function joinRelationshipByInvite(input: {
     if (index < 0) throw new Error('Invite code not found.')
     const current = state.relationships[index]!
 
-    let joined: Relationship
     if (memberIds(current).includes(input.user.id)) {
       joined = current
     } else if (current.members.length >= 2) {
@@ -115,59 +197,68 @@ export async function joinRelationshipByInvite(input: {
         ],
       }
     }
+  } else {
+    const db = getFirebaseDb()
+    if (!db) throw new Error('Firestore is not configured.')
 
-    updateDemoState((s) => {
-      const relationships = [...s.relationships]
-      const idx = relationships.findIndex((r) => r.id === joined.id)
-      if (idx >= 0) relationships[idx] = joined
-      return {
-        ...s,
-        relationships,
-        activeRelationshipIdByUser: {
-          ...s.activeRelationshipIdByUser,
-          [input.user.id]: joined.id,
-        },
+    const snap = await getDocs(
+      query(collection(db, 'relationships'), where('inviteCode', '==', code)),
+    )
+    if (snap.empty) throw new Error('Invite code not found.')
+    const docSnap = snap.docs[0]!
+    const current = docSnap.data() as Relationship & { memberIds?: string[] }
+    if (memberIds(current).includes(input.user.id)) {
+      joined = current
+    } else if (current.members.length >= 2) {
+      throw new Error('This relationship already has two members.')
+    } else {
+      joined = {
+        ...current,
+        members: [
+          ...current.members,
+          {
+            userId: input.user.id,
+            role: input.role,
+            displayName: input.user.displayName,
+          },
+        ],
       }
-    })
-    localStorage.setItem(ACTIVE_KEY, joined.id)
-    notifyDemoRelationshipsChanged()
-    return joined
+      await updateDoc(doc(db, 'relationships', current.id), {
+        members: joined.members,
+        memberIds: memberIds(joined),
+      })
+    }
   }
 
-  const db = getFirebaseDb()
-  if (!db) throw new Error('Firestore is not configured.')
-
-  const snap = await getDocs(
-    query(collection(db, 'relationships'), where('inviteCode', '==', code)),
-  )
-  if (snap.empty) throw new Error('Invite code not found.')
-  const docSnap = snap.docs[0]!
-  const current = docSnap.data() as Relationship & { memberIds?: string[] }
-  if (memberIds(current).includes(input.user.id)) {
-    localStorage.setItem(ACTIVE_KEY, current.id)
-    return current
-  }
-  if (current.members.length >= 2) {
-    throw new Error('This relationship already has two members.')
-  }
-
-  const next: Relationship = {
-    ...current,
-    members: [
-      ...current.members,
-      {
-        userId: input.user.id,
-        role: input.role,
-        displayName: input.user.displayName,
-      },
-    ],
-  }
-  await updateDoc(doc(db, 'relationships', current.id), {
-    members: next.members,
-    memberIds: memberIds(next),
+  const secure = await acceptRelationshipCrypto({
+    relationship: joined,
+    user: input.user,
+    passphrase: input.passphrase,
   })
-  localStorage.setItem(ACTIVE_KEY, next.id)
-  return next
+
+  const withCrypto: Relationship = {
+    ...joined,
+    crypto: secure.crypto,
+  }
+
+  await persistRelationship(withCrypto)
+  localStorage.setItem(ACTIVE_KEY, withCrypto.id)
+
+  if (isDemoMode()) {
+    updateDemoState((state) => ({
+      ...state,
+      activeRelationshipIdByUser: {
+        ...state.activeRelationshipIdByUser,
+        [input.user.id]: withCrypto.id,
+      },
+    }))
+  }
+
+  return {
+    relationship: withCrypto,
+    safetyNumber: secure.safetyNumber,
+    awaitingKeyDelivery: secure.awaitingKeyDelivery,
+  }
 }
 
 export async function getActiveRelationshipId(userId: string): Promise<string | null> {

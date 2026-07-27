@@ -60,7 +60,12 @@ describe('RequireAuth / RequireRelationship', () => {
 
   it('allows access once the user has a relationship', async () => {
     const user = await signUp('paired@example.com', 'secret123', 'Paired')
-    await createRelationship({ user, name: 'Ready', role: 'dominant' })
+    await createRelationship({
+      user,
+      name: 'Ready',
+      role: 'dominant',
+      passphrase: 'encrypt-me-please',
+    })
     renderGuardedApp('/settings')
     expect(await screen.findByText('Settings screen')).toBeInTheDocument()
   })

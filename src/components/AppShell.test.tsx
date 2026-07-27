@@ -31,15 +31,17 @@ describe('AppShell', () => {
   it('renders navigation and relationship switcher', async () => {
     const user = userEvent.setup()
     const profile = await signUp('shell@example.com', 'secret123', 'Shell User')
-    const first = await createRelationship({
+    const { relationship: first } = await createRelationship({
       user: profile,
       name: 'Alpha',
       role: 'dominant',
+      passphrase: 'encrypt-me-please',
     })
-    const second = await createRelationship({
+    const { relationship: second } = await createRelationship({
       user: profile,
       name: 'Beta',
       role: 'switch',
+      passphrase: 'encrypt-me-please',
     })
     await setActiveRelationshipId(profile.id, second.id)
 

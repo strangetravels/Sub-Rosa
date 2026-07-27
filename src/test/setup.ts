@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
@@ -14,6 +15,12 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  // Reset in-memory IndexedDB between tests
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const idb = indexedDB as any
+  if (typeof idb?.deleteDatabase === 'function') {
+    idb.deleteDatabase('subrosa-crypto-v1')
+  }
   vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
