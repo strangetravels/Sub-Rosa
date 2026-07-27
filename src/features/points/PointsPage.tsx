@@ -26,6 +26,8 @@ function sourceLabel(source: string): string {
       return 'Manual adjust'
     case 'reward_purchase':
       return 'Reward purchase'
+    case 'journal_entry':
+      return 'Journal entry'
     default:
       return source
   }

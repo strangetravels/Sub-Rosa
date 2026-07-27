@@ -3,13 +3,13 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  query,
   setDoc,
   updateDoc,
-  where,
 } from 'firebase/firestore'
 import { getUnlockedContentKey } from '@/features/crypto/cryptoService'
+import { applyJournalEntryPoints } from '@/features/points/pointService'
 import { decryptText, encryptText } from '@/lib/crypto'
+import { toLocalDateKey } from '@/lib/date'
 import { readDemoState, updateDemoState } from '@/lib/demo/store'
 import { getFirebaseDb } from '@/lib/firebase/app'
 import { isDemoMode } from '@/lib/firebase/config'
@@ -136,12 +136,26 @@ export async function createJournalEntry(
   if (isDemoMode()) {
     updateDemoState((s) => ({ ...s, journalEntries: [...s.journalEntries, entry] }))
     notifyDemoJournalChanged()
-    return hydrateBody(input.relationshipId, entry)
+  } else {
+    const db = getFirebaseDb()
+    if (!db) throw new Error('Firestore is not configured.')
+    await setDoc(doc(db, 'relationships', input.relationshipId, 'journalEntries', entry.id), entry)
   }
 
-  const db = getFirebaseDb()
-  if (!db) throw new Error('Firestore is not configured.')
-  await setDoc(doc(db, 'relationships', input.relationshipId, 'journalEntries', entry.id), entry)
+  if (input.promptId) {
+    await markPromptAnswered({
+      relationshipId: input.relationshipId,
+      promptId: input.promptId,
+      entryId: entry.id,
+    })
+  }
+
+  await applyJournalEntryPoints({
+    relationshipId: input.relationshipId,
+    userId: input.authorUserId,
+    dateKey: toLocalDateKey(),
+  })
+
   return hydrateBody(input.relationshipId, entry)
 }
 
@@ -173,7 +187,7 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput): Promis
     updateDemoState((s) => ({
       ...s,
       journalEntries: s.journalEntries.map((e) =>
-        e.id === input.entryId ? { ...e, ...patch } as JournalEntry : e,
+        e.id === input.entryId ? ({ ...e, ...patch } as JournalEntry) : e,
       ),
     }))
     notifyDemoJournalChanged()
@@ -182,7 +196,10 @@ export async function updateJournalEntry(input: UpdateJournalEntryInput): Promis
 
   const db = getFirebaseDb()
   if (!db) throw new Error('Firestore is not configured.')
-  await updateDoc(doc(db, 'relationships', input.relationshipId, 'journalEntries', input.entryId), patch)
+  await updateDoc(
+    doc(db, 'relationships', input.relationshipId, 'journalEntries', input.entryId),
+    patch,
+  )
 }
 
 export async function deleteJournalEntry(
@@ -230,13 +247,14 @@ export async function listJournalEntries(
   return Promise.all(entries.map((e) => hydrateBody(relationshipId, e)))
 }
 
-// ─── Custom prompts ───
+// ─── Custom / assigned prompts ───
 
 export async function createJournalPrompt(input: {
   relationshipId: string
   text: string
   category: string
   createdByUserId: string
+  assignedToUserId?: string | null
 }): Promise<JournalPrompt> {
   const text = input.text.trim()
   if (!text) throw new Error('Prompt text is required.')
@@ -248,6 +266,9 @@ export async function createJournalPrompt(input: {
     category: input.category.trim() || 'General',
     createdByUserId: input.createdByUserId,
     createdAt: now,
+    assignedToUserId: input.assignedToUserId ?? null,
+    status: input.assignedToUserId ? 'open' : undefined,
+    answeredEntryId: null,
   }
 
   if (isDemoMode()) {
@@ -260,6 +281,52 @@ export async function createJournalPrompt(input: {
   if (!db) throw new Error('Firestore is not configured.')
   await setDoc(doc(db, 'relationships', input.relationshipId, 'journalPrompts', prompt.id), prompt)
   return prompt
+}
+
+export async function assignJournalPrompt(input: {
+  relationshipId: string
+  text: string
+  category?: string
+  createdByUserId: string
+  assignedToUserId: string
+}): Promise<JournalPrompt> {
+  if (!input.assignedToUserId) throw new Error('Assignee is required.')
+  if (input.assignedToUserId === input.createdByUserId) {
+    throw new Error('Assign the prompt to a partner, not yourself.')
+  }
+  return createJournalPrompt({
+    relationshipId: input.relationshipId,
+    text: input.text,
+    category: input.category?.trim() || 'Assigned',
+    createdByUserId: input.createdByUserId,
+    assignedToUserId: input.assignedToUserId,
+  })
+}
+
+async function markPromptAnswered(input: {
+  relationshipId: string
+  promptId: string
+  entryId: string
+}): Promise<void> {
+  if (isDemoMode()) {
+    updateDemoState((s) => ({
+      ...s,
+      journalPrompts: s.journalPrompts.map((p) =>
+        p.id === input.promptId
+          ? { ...p, status: 'answered' as const, answeredEntryId: input.entryId }
+          : p,
+      ),
+    }))
+    notifyDemoJournalChanged()
+    return
+  }
+
+  const db = getFirebaseDb()
+  if (!db) throw new Error('Firestore is not configured.')
+  await updateDoc(doc(db, 'relationships', input.relationshipId, 'journalPrompts', input.promptId), {
+    status: 'answered',
+    answeredEntryId: input.entryId,
+  })
 }
 
 export async function listJournalPrompts(
@@ -304,12 +371,13 @@ export function computeJournalStreak(entries: JournalEntry[], userId: string): n
 
   let streak = 0
   const d = new Date()
-  const todayKey = d.toISOString().slice(0, 10)
+  const todayKey = toLocalDateKey(d)
+  // Allow streak to continue from yesterday if no entry today yet
   if (!myDates.has(todayKey)) {
     d.setDate(d.getDate() - 1)
   }
   while (true) {
-    const key = d.toISOString().slice(0, 10)
+    const key = toLocalDateKey(d)
     if (!myDates.has(key)) break
     streak++
     d.setDate(d.getDate() - 1)

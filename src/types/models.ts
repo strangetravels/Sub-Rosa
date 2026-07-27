@@ -231,6 +231,8 @@ export type JournalEntry = {
   updatedAt: string
 }
 
+export type JournalPromptStatus = 'open' | 'answered'
+
 export type JournalPrompt = {
   id: string
   relationshipId: string
@@ -238,6 +240,10 @@ export type JournalPrompt = {
   category: string
   createdByUserId: string
   createdAt: string
+  /** When set, this prompt is assigned to a specific member to answer. */
+  assignedToUserId?: string | null
+  status?: JournalPromptStatus
+  answeredEntryId?: string | null
 }
 
 export type PointsLedgerSource =
@@ -245,6 +251,7 @@ export type PointsLedgerSource =
   | 'manual_grant'
   | 'manual_adjust'
   | 'reward_purchase'
+  | 'journal_entry'
 
 export type PointsLedgerEntry = {
   id: string

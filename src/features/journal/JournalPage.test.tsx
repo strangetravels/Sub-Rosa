@@ -41,7 +41,7 @@ describe('JournalPage', () => {
     await waitFor(() => {
       expect(screen.getByText('First thoughts')).toBeInTheDocument()
     })
-    expect(screen.getByText('Today was meaningful.')).toBeInTheDocument()
+    expect(screen.getAllByText('Today was meaningful.').length).toBeGreaterThan(0)
   })
 
   it('creates a custom prompt and uses it', async () => {

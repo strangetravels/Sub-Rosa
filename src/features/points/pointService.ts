@@ -28,6 +28,7 @@ import {
 const POINTS_CHANGED = 'subrosa-demo-points'
 
 export const DEFAULT_HABIT_COMPLETION_POINTS = 10
+export const DEFAULT_JOURNAL_ENTRY_POINTS = 5
 export const LOCKED_TEXT = '[Unlock encryption key in Settings to read this text.]'
 export const DECRYPT_FAILED_TEXT = '[Unable to decrypt text on this device.]'
 
@@ -205,6 +206,36 @@ export async function applyHabitCompletionPoints(input: {
     note: `Points for completing ${input.habit.title}`,
     habitId: input.habit.id,
     occurrenceKey: input.completedOn,
+  })
+}
+
+export async function applyJournalEntryPoints(input: {
+  relationshipId: string
+  userId: string
+  dateKey: string
+  amount?: number
+}): Promise<void> {
+  const amount = Math.max(0, Math.floor(input.amount ?? DEFAULT_JOURNAL_ENTRY_POINTS))
+  if (amount <= 0) return
+
+  const existing = await listPointsLedger(input.relationshipId, { userId: input.userId })
+  if (
+    existing.some(
+      (entry) =>
+        entry.source === 'journal_entry' && entry.occurrenceKey === input.dateKey,
+    )
+  ) {
+    return
+  }
+
+  await createLedgerEntry({
+    relationshipId: input.relationshipId,
+    userId: input.userId,
+    amount,
+    source: 'journal_entry',
+    createdByUserId: input.userId,
+    note: 'Journal entry for the day',
+    occurrenceKey: input.dateKey,
   })
 }
 

@@ -8,7 +8,7 @@ Private habit and task tracking for consensual dominant/submissive (D/s) relatio
 - **Rules** — versioned rule library, category filters, optional partner acknowledgment, per-version ack roster, optional default-consequence link, encrypted rule bodies when the content key is unlocked
 - **Rewards & punishments** — catalogs with categories, manual apply, history log, habit auto-reward on completion and auto-punishment on miss, rule default consequences, encrypted descriptions when the content key is unlocked
 - **Points** — per-member ledger and balance, habit completion earnings, manual grants, reward store spending
-- **Journal** — private or shared encrypted entries, daily rotating prompts, custom prompts, tags, search, journaling streak
+- **Journal** — private or shared encrypted entries, daily rotating prompts, custom prompts, partner-assigned prompts, tags/date/search filters, streak + daily points
 - **Chat** — real-time messaging per relationship *(roadmap)*
 - **Multi-partner** — fully separate data per relationship, with a workspace-style switcher
 
