@@ -20,6 +20,8 @@ describe('demo store', () => {
       ruleCategories: [],
       ruleVersions: [],
       ruleAcknowledgments: [],
+      journalEntries: [],
+      journalPrompts: [],
     })
   })
 

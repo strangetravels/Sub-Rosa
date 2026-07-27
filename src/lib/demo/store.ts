@@ -3,6 +3,8 @@ import type {
   Habit,
   HabitCategory,
   HabitCompletion,
+  JournalEntry,
+  JournalPrompt,
   PointsLedgerEntry,
   Punishment,
   Reward,
@@ -39,6 +41,8 @@ export type DemoState = {
   ruleCategories: RuleCategory[]
   ruleVersions: RuleVersion[]
   ruleAcknowledgments: RuleAcknowledgment[]
+  journalEntries: JournalEntry[]
+  journalPrompts: JournalPrompt[]
 }
 
 function emptyState(): DemoState {
@@ -59,6 +63,8 @@ function emptyState(): DemoState {
     ruleCategories: [],
     ruleVersions: [],
     ruleAcknowledgments: [],
+    journalEntries: [],
+    journalPrompts: [],
   }
 }
 
