@@ -10,11 +10,15 @@ export function PartnersSettingsPage() {
     activeRelationship,
     setActiveRelationship,
     unlockActiveRelationship,
+    restoreActiveRelationshipWithRecovery,
     deliverPendingKeys,
     getActiveSafetyNumber,
   } = useRelationship()
 
   const [passphrase, setPassphrase] = useState('')
+  const [recoveryPhrase, setRecoveryPhrase] = useState('')
+  const [newPassphrase, setNewPassphrase] = useState('')
+  const [newPassphraseConfirm, setNewPassphraseConfirm] = useState('')
   const [safetyNumber, setSafetyNumber] = useState<string | null>(null)
   const [cryptoMessage, setCryptoMessage] = useState<string | null>(null)
   const [cryptoError, setCryptoError] = useState<string | null>(null)
@@ -24,6 +28,7 @@ export function PartnersSettingsPage() {
   const hasWrap = Boolean(
     user && activeRelationship?.crypto?.wrappedContentKeys[user.id],
   )
+  const hasRecovery = Boolean(activeRelationship?.crypto?.recoveryWrap)
 
   useEffect(() => {
     let cancelled = false
@@ -156,6 +161,82 @@ export function PartnersSettingsPage() {
             Deliver pending keys
           </button>
         </div>
+
+        {hasRecovery ? (
+          <div className="mt-6 border-t border-stone-700 pt-5">
+            <h4 className="text-sm font-medium text-stone-200">Restore with recovery phrase</h4>
+            <p className="mt-2 text-sm text-stone-400">
+              If you forgot your encryption passphrase, enter the recovery phrase shown at
+              setup and choose a new passphrase. There is no server-side reset.
+            </p>
+            <label className="mt-4 block text-sm text-stone-300">
+              Recovery phrase
+              <textarea
+                className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 font-mono text-sm text-stone-50 outline-none focus:border-rose-500"
+                rows={3}
+                value={recoveryPhrase}
+                onChange={(e) => setRecoveryPhrase(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <label className="mt-3 block text-sm text-stone-300">
+              New encryption passphrase
+              <input
+                type="password"
+                className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+                value={newPassphrase}
+                onChange={(e) => setNewPassphrase(e.target.value)}
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </label>
+            <label className="mt-3 block text-sm text-stone-300">
+              Confirm new passphrase
+              <input
+                type="password"
+                className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+                value={newPassphraseConfirm}
+                onChange={(e) => setNewPassphraseConfirm(e.target.value)}
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy || !recoveryPhrase || !newPassphrase}
+              className="mt-3 rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:border-stone-400 hover:text-stone-100 disabled:opacity-50"
+              onClick={() => {
+                if (newPassphrase !== newPassphraseConfirm) {
+                  setCryptoError('New passphrases do not match.')
+                  setCryptoMessage(null)
+                  return
+                }
+                setBusy(true)
+                setCryptoError(null)
+                setCryptoMessage(null)
+                void restoreActiveRelationshipWithRecovery(recoveryPhrase, newPassphrase)
+                  .then(() => {
+                    setCryptoMessage(
+                      'Content key restored. Use your new passphrase to unlock on other devices.',
+                    )
+                    setRecoveryPhrase('')
+                    setNewPassphrase('')
+                    setNewPassphraseConfirm('')
+                    setPassphrase('')
+                  })
+                  .catch((err: unknown) =>
+                    setCryptoError(
+                      err instanceof Error ? err.message : 'Recovery restore failed.',
+                    ),
+                  )
+                  .finally(() => setBusy(false))
+              }}
+            >
+              Restore access
+            </button>
+          </div>
+        ) : null}
 
         {cryptoMessage ? <p className="mt-3 text-sm text-emerald-400">{cryptoMessage}</p> : null}
         {cryptoError ? <p className="mt-3 text-sm text-rose-400">{cryptoError}</p> : null}

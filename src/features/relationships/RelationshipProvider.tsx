@@ -19,6 +19,7 @@ import {
   deliverContentKeyToPendingMembers,
   getRelationshipSafetyNumber,
   unlockRelationshipContentKey,
+  unlockWithRecoveryPhrase,
 } from '@/features/crypto/cryptoService'
 import { useAuth } from '@/features/auth/AuthProvider'
 import type { Relationship, RelationshipRole } from '@/types/models'
@@ -39,6 +40,10 @@ type RelationshipContextValue = {
     passphrase: string,
   ) => Promise<JoinRelationshipResult>
   unlockActiveRelationship: (passphrase: string) => Promise<void>
+  restoreActiveRelationshipWithRecovery: (
+    recoveryPhrase: string,
+    newPassphrase: string,
+  ) => Promise<void>
   deliverPendingKeys: () => Promise<void>
   getActiveSafetyNumber: () => Promise<string | null>
 }
@@ -127,6 +132,22 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
           userId: user.id,
           passphrase,
         })
+      },
+      async restoreActiveRelationshipWithRecovery(recoveryPhrase, newPassphrase) {
+        if (!user || !activeRelationship) throw new Error('No active relationship.')
+        const restored = await unlockWithRecoveryPhrase({
+          relationship: activeRelationship,
+          recoveryPhrase,
+          newPassphrase,
+          userId: user.id,
+        })
+        const updated = await updateRelationshipCrypto(
+          activeRelationship.id,
+          restored.crypto,
+        )
+        setRelationships((prev) =>
+          prev.map((rel) => (rel.id === updated.id ? updated : rel)),
+        )
       },
       async deliverPendingKeys() {
         if (!user || !activeRelationship) return
