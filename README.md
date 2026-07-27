@@ -6,7 +6,8 @@ Private habit and task tracking for consensual dominant/submissive (D/s) relatio
 
 - **Habits & tasks** — recurring habits (daily / weekdays / X× per week), categories, streaks, completion history, today’s dashboard with “assigned to me” filter
 - **Rules** — versioned rule library, category filters, optional partner acknowledgment, per-version ack roster, optional default-consequence link, encrypted rule bodies when the content key is unlocked
-- **Rewards, punishments & points** — catalogs, manual or auto assignment, ledger and reward store *(roadmap)*
+- **Rewards & punishments** — catalogs with categories, manual apply, history log, habit auto-reward on completion and auto-punishment on miss, rule default consequences, encrypted descriptions when the content key is unlocked
+- **Points** — ledger, balance, reward store *(roadmap)*
 - **Journal** — private or shared entries per post, prompts, streak rewards *(roadmap)*
 - **Chat** — real-time messaging per relationship *(roadmap)*
 - **Multi-partner** — fully separate data per relationship, with a workspace-style switcher
@@ -37,7 +38,7 @@ Firestore Security Rules stop other users — they do **not** stop project admin
 
 **Encrypt when the content key is unlocked:** journal bodies, chat messages, freeform rule/reward/punishment text. **Leave in plaintext for queries/stats:** IDs, timestamps, streak counts, point totals, habit completion booleans, rule titles/metadata.
 
-If rule text was stored encrypted and the device key is locked, the Rules UI shows a placeholder with an **Unlock in Settings** link.
+If rule, reward, or punishment text was stored encrypted and the device key is locked, the UI shows a placeholder with an **Unlock in Settings** link.
 
 ## What’s built so far
 
@@ -49,7 +50,8 @@ If rule text was stored encrypted and the device key is locked, the Rules UI sho
 | E2EE content keys, passphrase wrap, ECDH delivery, safety numbers, recovery | Done |
 | Habits CRUD, categories, streaks, history, dashboard today list | Done |
 | Rules library, versions, acknowledgment, encrypted bodies | Done |
-| Rewards / punishments / points / journal / chat / stats / FCM / safety UI | Not yet |
+| Rewards & punishments catalogs, apply, history, habit/rule triggers | Done |
+| Points / journal / chat / stats / FCM / safety UI | Not yet |
 
 ## Roadmap
 

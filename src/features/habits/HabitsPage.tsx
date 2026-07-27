@@ -4,8 +4,10 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
 import {
   archiveHabit,
+  clearHabitMissForDate,
   createCategory,
   createHabit,
+  markHabitMissedForDate,
   setHabitCompletedForDate,
   updateHabit,
 } from '@/features/habits/habitService'
@@ -17,6 +19,8 @@ import {
   weeklyCompletionCount,
 } from '@/features/habits/habitLogic'
 import { useHabitsData } from '@/features/habits/useHabitsData'
+import { hasHabitMissPunishment } from '@/features/rewards/rewardService'
+import { useRewardsData } from '@/features/rewards/useRewardsData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 import type { Habit, HabitFrequency } from '@/types/models'
 
@@ -51,6 +55,8 @@ function emptyForm(assignedToUserId: string) {
     weekdays: [1, 2, 3, 4, 5] as number[],
     weeklyCount: 3,
     assignedToUserId,
+    linkedRewardId: '',
+    linkedPunishmentId: '',
   }
 }
 
@@ -69,6 +75,10 @@ export function HabitsPage() {
   const { habits, categories, completions, loading, refresh } = useHabitsData(relationshipId, {
     includeArchived: true,
   })
+  const { rewards, punishments, history, refresh: refreshRewards } = useRewardsData(
+    relationshipId,
+    { includeArchived: false },
+  )
 
   const [showArchived, setShowArchived] = useState(false)
   const [historyHabitId, setHistoryHabitId] = useState<string>('all')
@@ -117,6 +127,8 @@ export function HabitsPage() {
       weekdays: habit.frequency.type === 'weekdays' ? [...habit.frequency.days] : [1, 2, 3, 4, 5],
       weeklyCount: habit.frequency.type === 'weeklyCount' ? habit.frequency.count : 3,
       assignedToUserId: habit.assignedToUserId,
+      linkedRewardId: habit.linkedRewardId ?? '',
+      linkedPunishmentId: habit.linkedPunishmentId ?? '',
     })
     setError(null)
   }
@@ -134,6 +146,8 @@ export function HabitsPage() {
           categoryId: form.categoryId || null,
           frequency,
           assignedToUserId: form.assignedToUserId,
+          linkedRewardId: form.linkedRewardId || null,
+          linkedPunishmentId: form.linkedPunishmentId || null,
         })
       } else {
         await createHabit({
@@ -144,6 +158,8 @@ export function HabitsPage() {
           frequency,
           assignedToUserId: form.assignedToUserId,
           createdByUserId: user.id,
+          linkedRewardId: form.linkedRewardId || null,
+          linkedPunishmentId: form.linkedPunishmentId || null,
         })
       }
       startCreate()
@@ -181,7 +197,27 @@ export function HabitsPage() {
       userId: user.id,
       completed: !done,
     })
-    await refresh()
+    await Promise.all([refresh(), refreshRewards()])
+  }
+
+  async function toggleMiss(habit: Habit) {
+    if (!user || !relationshipId) return
+    const missed = hasHabitMissPunishment(history, habit.id, todayKey)
+    if (missed) {
+      await clearHabitMissForDate({
+        relationshipId,
+        habitId: habit.id,
+        missedOn: todayKey,
+      })
+    } else {
+      await markHabitMissedForDate({
+        relationshipId,
+        habitId: habit.id,
+        userId: user.id,
+        missedOn: todayKey,
+      })
+    }
+    await refreshRewards()
   }
 
   if (!activeRelationship || !user) {
@@ -317,6 +353,38 @@ export function HabitsPage() {
           </select>
         </label>
 
+        <label className="mt-3 block text-sm text-stone-300">
+          Linked reward
+          <select
+            className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+            value={form.linkedRewardId}
+            onChange={(e) => setForm((f) => ({ ...f, linkedRewardId: e.target.value }))}
+          >
+            <option value="">None</option>
+            {rewards.map((reward) => (
+              <option key={reward.id} value={reward.id}>
+                {reward.title}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="mt-3 block text-sm text-stone-300">
+          Linked punishment
+          <select
+            className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+            value={form.linkedPunishmentId}
+            onChange={(e) => setForm((f) => ({ ...f, linkedPunishmentId: e.target.value }))}
+          >
+            <option value="">None</option>
+            {punishments.map((punishment) => (
+              <option key={punishment.id} value={punishment.id}>
+                {punishment.title}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <fieldset className="mt-3">
           <legend className="text-sm text-stone-300">Frequency</legend>
           <div className="mt-2 flex flex-wrap gap-3 text-sm text-stone-300">
@@ -434,6 +502,7 @@ export function HabitsPage() {
                 (m) => m.userId === habit.assignedToUserId,
               )
               const doneToday = Boolean(completionsOnDate(completions, habit.id, todayKey))
+              const missedToday = hasHabitMissPunishment(history, habit.id, todayKey)
               const dueToday = isHabitDueOn(habit, completions)
               const streak = computeStreak(habit, completions)
               const weekProgress =
@@ -460,6 +529,9 @@ export function HabitsPage() {
                         {habit.status === 'archived' ? (
                           <span className="text-xs text-stone-500">Archived</span>
                         ) : null}
+                        {missedToday ? (
+                          <span className="text-xs text-rose-400">Missed</span>
+                        ) : null}
                       </div>
                       {habit.description ? (
                         <p className="mt-1 text-sm text-stone-400">{habit.description}</p>
@@ -473,21 +545,39 @@ export function HabitsPage() {
                         {assignee?.displayName ?? 'Unassigned'}
                         {' · '}
                         streak {streak}
+                        {habit.linkedRewardId ? ' · auto reward linked' : ''}
+                        {habit.linkedPunishmentId ? ' · punishment linked' : ''}
                       </p>
                     </div>
                     {habit.status === 'active' && dueToday ? (
-                      <button
-                        type="button"
-                        className={[
-                          'shrink-0 rounded-md border px-2.5 py-1 text-xs',
-                          doneToday
-                            ? 'border-emerald-700 bg-emerald-950/40 text-emerald-300'
-                            : 'border-stone-600 text-stone-300 hover:border-stone-400',
-                        ].join(' ')}
-                        onClick={() => void toggleToday(habit)}
-                      >
-                        {doneToday ? 'Done today' : 'Mark done'}
-                      </button>
+                      <div className="flex shrink-0 flex-col gap-2">
+                        <button
+                          type="button"
+                          className={[
+                            'rounded-md border px-2.5 py-1 text-xs',
+                            doneToday
+                              ? 'border-emerald-700 bg-emerald-950/40 text-emerald-300'
+                              : 'border-stone-600 text-stone-300 hover:border-stone-400',
+                          ].join(' ')}
+                          onClick={() => void toggleToday(habit)}
+                        >
+                          {doneToday ? 'Done today' : 'Mark done'}
+                        </button>
+                        {habit.linkedPunishmentId && !doneToday ? (
+                          <button
+                            type="button"
+                            className={[
+                              'rounded-md border px-2.5 py-1 text-xs',
+                              missedToday
+                                ? 'border-rose-700 bg-rose-950/40 text-rose-300'
+                                : 'border-stone-600 text-stone-300 hover:border-rose-500',
+                            ].join(' ')}
+                            onClick={() => void toggleMiss(habit)}
+                          >
+                            {missedToday ? 'Clear miss' : 'Mark missed'}
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">

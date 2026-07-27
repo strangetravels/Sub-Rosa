@@ -151,3 +151,64 @@ export type RuleAcknowledgment = {
   version: number
   acknowledgedAt: string
 }
+
+export type CatalogStatus = 'active' | 'archived'
+
+export type RewardPunishmentCategory = {
+  id: string
+  relationshipId: string
+  label: string
+  color: string
+}
+
+export type Reward = {
+  id: string
+  relationshipId: string
+  title: string
+  description: string
+  descriptionCiphertext?: EncryptedTextRecord
+  categoryId: string | null
+  pointCost: number
+  status: CatalogStatus
+  createdByUserId: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type Punishment = {
+  id: string
+  relationshipId: string
+  title: string
+  description: string
+  descriptionCiphertext?: EncryptedTextRecord
+  categoryId: string | null
+  severity: 1 | 2 | 3 | 4 | 5
+  status: CatalogStatus
+  createdByUserId: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ApplicationSource =
+  | 'manual_reward'
+  | 'manual_punishment'
+  | 'habit_completion'
+  | 'habit_punishment'
+  | 'rule_violation'
+
+export type CatalogHistoryEntry = {
+  id: string
+  relationshipId: string
+  itemType: 'reward' | 'punishment'
+  itemId: string
+  itemTitle: string
+  source: ApplicationSource
+  targetUserId: string
+  appliedByUserId: string
+  appliedAt: string
+  note: string
+  noteCiphertext?: EncryptedTextRecord
+  habitId?: string
+  ruleId?: string
+  occurrenceKey?: string
+}

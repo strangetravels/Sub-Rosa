@@ -1,7 +1,11 @@
 import type {
+  CatalogHistoryEntry,
   Habit,
   HabitCategory,
   HabitCompletion,
+  Punishment,
+  Reward,
+  RewardPunishmentCategory,
   Relationship,
   Rule,
   RuleAcknowledgment,
@@ -25,6 +29,10 @@ export type DemoState = {
   habits: Habit[]
   habitCategories: HabitCategory[]
   habitCompletions: HabitCompletion[]
+  rewardPunishmentCategories: RewardPunishmentCategory[]
+  rewards: Reward[]
+  punishments: Punishment[]
+  catalogHistory: CatalogHistoryEntry[]
   rules: Rule[]
   ruleCategories: RuleCategory[]
   ruleVersions: RuleVersion[]
@@ -40,6 +48,10 @@ function emptyState(): DemoState {
     habits: [],
     habitCategories: [],
     habitCompletions: [],
+    rewardPunishmentCategories: [],
+    rewards: [],
+    punishments: [],
+    catalogHistory: [],
     rules: [],
     ruleCategories: [],
     ruleVersions: [],
