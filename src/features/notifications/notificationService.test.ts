@@ -10,15 +10,20 @@ import { createJournalEntry } from '@/features/journal/journalService'
 import { sendChatMessage } from '@/features/chat/chatService'
 import {
   countUnreadNotifications,
+  displayNotificationText,
   ensureDailyPromptNotification,
+  filterNotificationsByGroup,
   getNotificationPreferences,
   listHabitReminders,
   listNotifications,
+  localTimeHHMM,
   markAllNotificationsRead,
   runDueHabitReminders,
+  sendTestNotification,
   setHabitReminder,
   updateNotificationPreferences,
 } from '@/features/notifications/notificationService'
+import type { AppNotification } from '@/types/models'
 
 const PASS = 'encrypt-me-please'
 
@@ -132,7 +137,7 @@ describe('notificationService', () => {
     await updateNotificationPreferences({
       relationshipId: relationship.id,
       userId: dom.id,
-      patch: { dailyPrompt: true },
+      patch: { dailyPrompt: true, dailyPromptTimeLocal: localTimeHHMM() },
     })
     const created = await ensureDailyPromptNotification({
       relationshipId: relationship.id,
@@ -189,5 +194,94 @@ describe('notificationService', () => {
 
     const list = await listNotifications(relationship.id, sub.id)
     expect(list.some((n) => n.kind === 'habit_reminder')).toBe(true)
+  })
+
+  it('delivers daily prompt only at the configured local time', async () => {
+    const { dom, relationship } = await setupPair('n-prompt-time')
+    const now = new Date()
+    const wrongTime = localTimeHHMM(new Date(now.getTime() + 60 * 60 * 1000))
+
+    await updateNotificationPreferences({
+      relationshipId: relationship.id,
+      userId: dom.id,
+      patch: { dailyPrompt: true, dailyPromptTimeLocal: wrongTime },
+    })
+
+    const skipped = await ensureDailyPromptNotification({
+      relationshipId: relationship.id,
+      userId: dom.id,
+      promptText: 'Not yet',
+      now,
+    })
+    expect(skipped).toBeNull()
+
+    await updateNotificationPreferences({
+      relationshipId: relationship.id,
+      userId: dom.id,
+      patch: { dailyPromptTimeLocal: localTimeHHMM(now) },
+    })
+    const created = await ensureDailyPromptNotification({
+      relationshipId: relationship.id,
+      userId: dom.id,
+      promptText: 'Right on time',
+      now,
+    })
+    expect(created?.body).toBe('Right on time')
+  })
+
+  it('uses discreet display text when enabled', async () => {
+    const sample: AppNotification = {
+      id: 'ntf_test',
+      relationshipId: 'rel',
+      recipientUserId: 'user',
+      kind: 'chat_message',
+      title: 'Message from Alex',
+      body: 'Secret preview',
+      href: '/chat',
+      readAt: null,
+      createdAt: new Date().toISOString(),
+    }
+    expect(displayNotificationText(sample, false).body).toBe('Secret preview')
+    expect(displayNotificationText(sample, true).body).toBe('You have a new message.')
+  })
+
+  it('filters inbox notifications by group', async () => {
+    const { dom, sub, relationship } = await setupPair('n-filter')
+    await setHabitCompletedForDate({
+      relationshipId: relationship.id,
+      habitId: (
+        await createHabit({
+          relationshipId: relationship.id,
+          title: 'Filter habit',
+          frequency: { type: 'daily' },
+          assignedToUserId: sub.id,
+          createdByUserId: dom.id,
+        })
+      ).id,
+      userId: sub.id,
+      completed: true,
+    })
+    await sendChatMessage({
+      relationshipId: relationship.id,
+      senderUserId: sub.id,
+      body: 'Filter chat',
+    })
+
+    const all = await listNotifications(relationship.id, dom.id)
+    const habitOnly = filterNotificationsByGroup(all, ['habit'])
+    const chatOnly = filterNotificationsByGroup(all, ['chat'])
+    expect(habitOnly.every((n) => n.kind.startsWith('habit_'))).toBe(true)
+    expect(chatOnly.every((n) => n.kind === 'chat_message')).toBe(true)
+  })
+
+  it('sends a test notification to the inbox', async () => {
+    const { dom, relationship } = await setupPair('n-test')
+    const created = await sendTestNotification({
+      relationshipId: relationship.id,
+      userId: dom.id,
+    })
+    expect(created.title).toBe('Test notification')
+    const list = await listNotifications(relationship.id, dom.id)
+    expect(list.some((n) => n.id === created.id)).toBe(true)
   })
 })

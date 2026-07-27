@@ -61,7 +61,7 @@ export function useNotifications(
   useEffect(() => {
     if (!runScheduler || !relationshipId || !userId) return
     let cancelled = false
-    void (async () => {
+    const runScheduled = async () => {
       const prompt = getDailyPrompt(toLocalDateKey())
       await ensureDailyPromptNotification({
         relationshipId,
@@ -71,11 +71,10 @@ export function useNotifications(
       const habits = await listHabits(relationshipId)
       await runDueHabitReminders({ relationshipId, userId, habits })
       if (!cancelled) await refresh()
-    })()
+    }
+    void runScheduled()
     const interval = window.setInterval(() => {
-      void listHabits(relationshipId).then((habits) =>
-        runDueHabitReminders({ relationshipId, userId, habits }).then(() => refresh()),
-      )
+      void runScheduled()
     }, 60_000)
     return () => {
       cancelled = true

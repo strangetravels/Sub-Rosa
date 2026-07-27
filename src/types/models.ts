@@ -285,6 +285,10 @@ export type NotificationPreferences = {
   sharedJournal: boolean
   chatMessage: boolean
   dailyPrompt: boolean
+  /** Generic in-app / push text instead of habit titles or message previews. */
+  discreetMode: boolean
+  /** Local wall-clock HH:mm when the daily journal prompt is delivered. */
+  dailyPromptTimeLocal: string
   /** Browser / FCM push enabled for this relationship. */
   pushEnabled: boolean
   fcmToken?: string | null

@@ -28,6 +28,7 @@ import {
   previewChatBody,
 } from '@/features/chat/chatService'
 import { useChatData } from '@/features/chat/useChatData'
+import { NotificationDashboardWidget } from '@/features/notifications/NotificationCenter'
 import { formatPercent } from '@/features/stats/statsLogic'
 import { useStatsData } from '@/features/stats/useStatsData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
@@ -187,6 +188,13 @@ export function DashboardPage() {
             <p className="mt-2 text-xs text-stone-500">No shared entries yet.</p>
           )}
         </div>
+      ) : null}
+
+      {activeRelationship && user ? (
+        <NotificationDashboardWidget
+          relationshipId={activeRelationship.id}
+          userId={user.id}
+        />
       ) : null}
 
       {activeRelationship && user ? (

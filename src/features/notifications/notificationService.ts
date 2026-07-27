@@ -44,8 +44,76 @@ const DEFAULT_PREFS = {
   sharedJournal: true,
   chatMessage: true,
   dailyPrompt: true,
+  discreetMode: false,
+  dailyPromptTimeLocal: '09:00',
   pushEnabled: false,
   fcmToken: null as string | null,
+}
+
+const DISCREET_COPY: Record<NotificationKind, { title: string; body: string }> = {
+  habit_reminder: { title: 'Sub Rosa', body: 'You have a new activity.' },
+  habit_completed: { title: 'Sub Rosa', body: 'You have a new activity.' },
+  habit_missed: { title: 'Sub Rosa', body: 'You have a new activity.' },
+  shared_journal: { title: 'Sub Rosa', body: 'You have a new activity.' },
+  chat_message: { title: 'Sub Rosa', body: 'You have a new message.' },
+  daily_prompt: { title: 'Sub Rosa', body: 'You have a new activity.' },
+}
+
+export function notificationKindLabel(kind: NotificationKind): string {
+  switch (kind) {
+    case 'habit_reminder':
+      return 'Habit reminder'
+    case 'habit_completed':
+      return 'Habit completed'
+    case 'habit_missed':
+      return 'Habit missed'
+    case 'shared_journal':
+      return 'Shared journal'
+    case 'chat_message':
+      return 'Chat message'
+    case 'daily_prompt':
+      return 'Daily prompt'
+    default:
+      return 'Notification'
+  }
+}
+
+export type NotificationFilterGroup = 'habit' | 'journal' | 'chat' | 'daily_prompt'
+
+export function notificationFilterGroup(kind: NotificationKind): NotificationFilterGroup {
+  switch (kind) {
+    case 'habit_reminder':
+    case 'habit_completed':
+    case 'habit_missed':
+      return 'habit'
+    case 'shared_journal':
+      return 'journal'
+    case 'chat_message':
+      return 'chat'
+    case 'daily_prompt':
+      return 'daily_prompt'
+    default:
+      return 'habit'
+  }
+}
+
+export function filterNotificationsByGroup(
+  notifications: AppNotification[],
+  groups: NotificationFilterGroup[],
+): AppNotification[] {
+  if (groups.length === 0) return notifications
+  const allowed = new Set(groups)
+  return notifications.filter((n) => allowed.has(notificationFilterGroup(n.kind)))
+}
+
+export function displayNotificationText(
+  notification: AppNotification,
+  discreetMode: boolean,
+): { title: string; body: string } {
+  if (!discreetMode) {
+    return { title: notification.title, body: notification.body }
+  }
+  return DISCREET_COPY[notification.kind]
 }
 
 function prefsId(relationshipId: string, userId: string): string {
@@ -62,6 +130,14 @@ export async function getRelationshipById(relationshipId: string): Promise<Relat
   return snap.exists() ? (snap.data() as Relationship) : null
 }
 
+function normalizePreferences(prefs: NotificationPreferences): NotificationPreferences {
+  return {
+    ...prefs,
+    discreetMode: prefs.discreetMode ?? DEFAULT_PREFS.discreetMode,
+    dailyPromptTimeLocal: prefs.dailyPromptTimeLocal ?? DEFAULT_PREFS.dailyPromptTimeLocal,
+  }
+}
+
 export async function getNotificationPreferences(
   relationshipId: string,
   userId: string,
@@ -69,7 +145,7 @@ export async function getNotificationPreferences(
   const id = prefsId(relationshipId, userId)
   if (isDemoMode()) {
     const existing = readDemoState().notificationPreferences.find((p) => p.id === id)
-    if (existing) return existing
+    if (existing) return normalizePreferences(existing)
     const created: NotificationPreferences = {
       id,
       userId,
@@ -88,7 +164,7 @@ export async function getNotificationPreferences(
   if (!db) throw new Error('Firestore is not configured.')
   const ref = doc(db, 'relationships', relationshipId, 'notificationPreferences', userId)
   const snap = await getDoc(ref)
-  if (snap.exists()) return snap.data() as NotificationPreferences
+  if (snap.exists()) return normalizePreferences(snap.data() as NotificationPreferences)
   const created: NotificationPreferences = {
     id,
     userId,
@@ -112,6 +188,8 @@ export async function updateNotificationPreferences(input: {
       | 'sharedJournal'
       | 'chatMessage'
       | 'dailyPrompt'
+      | 'discreetMode'
+      | 'dailyPromptTimeLocal'
       | 'pushEnabled'
       | 'fcmToken'
     >
@@ -163,12 +241,16 @@ function prefEnabled(prefs: NotificationPreferences, kind: NotificationKind): bo
   }
 }
 
-async function maybeShowBrowserNotification(n: AppNotification, pushEnabled: boolean): Promise<void> {
-  if (!pushEnabled) return
+async function maybeShowBrowserNotification(
+  n: AppNotification,
+  prefs: NotificationPreferences,
+): Promise<void> {
+  if (!prefs.pushEnabled) return
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return
+  const { title, body } = displayNotificationText(n, prefs.discreetMode)
   try {
-    new Notification(n.title, { body: n.body, tag: n.id })
+    new Notification(title, { body, tag: n.id })
   } catch {
     // Ignore — browser may block from non-secure contexts in tests
   }
@@ -212,7 +294,7 @@ export async function createNotification(input: {
       notifications: [...s.notifications, notification],
     }))
     notifyDemoNotificationsChanged()
-    await maybeShowBrowserNotification(notification, prefs.pushEnabled)
+    await maybeShowBrowserNotification(notification, prefs)
     return notification
   }
 
@@ -222,7 +304,7 @@ export async function createNotification(input: {
     doc(db, 'relationships', input.relationshipId, 'notifications', notification.id),
     notification,
   )
-  await maybeShowBrowserNotification(notification, prefs.pushEnabled)
+  await maybeShowBrowserNotification(notification, prefs)
   return notification
 }
 
@@ -429,8 +511,14 @@ export async function ensureDailyPromptNotification(input: {
   relationshipId: string
   userId: string
   promptText: string
+  now?: Date
 }): Promise<AppNotification | null> {
-  const dateKey = toLocalDateKey()
+  const now = input.now ?? new Date()
+  const prefs = await getNotificationPreferences(input.relationshipId, input.userId)
+  if (!prefs.dailyPrompt) return null
+  if (localTimeHHMM(now) !== prefs.dailyPromptTimeLocal) return null
+
+  const dateKey = toLocalDateKey(now)
   return createNotification({
     relationshipId: input.relationshipId,
     recipientUserId: input.userId,
@@ -440,6 +528,25 @@ export async function ensureDailyPromptNotification(input: {
     href: '/journal',
     occurrenceKey: `daily_prompt:${dateKey}`,
   })
+}
+
+export async function sendTestNotification(input: {
+  relationshipId: string
+  userId: string
+}): Promise<AppNotification> {
+  const notification = await createNotification({
+    relationshipId: input.relationshipId,
+    recipientUserId: input.userId,
+    kind: 'habit_reminder',
+    title: 'Test notification',
+    body: 'This is a test alert from Sub Rosa settings.',
+    href: '/settings',
+    occurrenceKey: `test:${input.userId}:${Date.now()}`,
+  })
+  if (!notification) {
+    throw new Error('Could not send test notification. Check that habit reminders are enabled.')
+  }
+  return notification
 }
 
 // ─── Habit reminders ───
