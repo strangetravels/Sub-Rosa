@@ -17,6 +17,7 @@ import {
   weeklyCompletionCount,
 } from '@/features/habits/habitLogic'
 import { useHabitsData } from '@/features/habits/useHabitsData'
+import { useRewardsData } from '@/features/rewards/useRewardsData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 import type { Habit, HabitFrequency } from '@/types/models'
 
@@ -51,6 +52,8 @@ function emptyForm(assignedToUserId: string) {
     weekdays: [1, 2, 3, 4, 5] as number[],
     weeklyCount: 3,
     assignedToUserId,
+    linkedRewardId: '',
+    linkedPunishmentId: '',
   }
 }
 
@@ -69,6 +72,7 @@ export function HabitsPage() {
   const { habits, categories, completions, loading, refresh } = useHabitsData(relationshipId, {
     includeArchived: true,
   })
+  const { rewards, punishments } = useRewardsData(relationshipId, { includeArchived: false })
 
   const [showArchived, setShowArchived] = useState(false)
   const [historyHabitId, setHistoryHabitId] = useState<string>('all')
@@ -117,6 +121,8 @@ export function HabitsPage() {
       weekdays: habit.frequency.type === 'weekdays' ? [...habit.frequency.days] : [1, 2, 3, 4, 5],
       weeklyCount: habit.frequency.type === 'weeklyCount' ? habit.frequency.count : 3,
       assignedToUserId: habit.assignedToUserId,
+      linkedRewardId: habit.linkedRewardId ?? '',
+      linkedPunishmentId: habit.linkedPunishmentId ?? '',
     })
     setError(null)
   }
@@ -134,6 +140,8 @@ export function HabitsPage() {
           categoryId: form.categoryId || null,
           frequency,
           assignedToUserId: form.assignedToUserId,
+          linkedRewardId: form.linkedRewardId || null,
+          linkedPunishmentId: form.linkedPunishmentId || null,
         })
       } else {
         await createHabit({
@@ -144,6 +152,8 @@ export function HabitsPage() {
           frequency,
           assignedToUserId: form.assignedToUserId,
           createdByUserId: user.id,
+          linkedRewardId: form.linkedRewardId || null,
+          linkedPunishmentId: form.linkedPunishmentId || null,
         })
       }
       startCreate()
@@ -317,6 +327,38 @@ export function HabitsPage() {
           </select>
         </label>
 
+        <label className="mt-3 block text-sm text-stone-300">
+          Linked reward
+          <select
+            className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+            value={form.linkedRewardId}
+            onChange={(e) => setForm((f) => ({ ...f, linkedRewardId: e.target.value }))}
+          >
+            <option value="">None</option>
+            {rewards.map((reward) => (
+              <option key={reward.id} value={reward.id}>
+                {reward.title}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="mt-3 block text-sm text-stone-300">
+          Linked punishment
+          <select
+            className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+            value={form.linkedPunishmentId}
+            onChange={(e) => setForm((f) => ({ ...f, linkedPunishmentId: e.target.value }))}
+          >
+            <option value="">None</option>
+            {punishments.map((punishment) => (
+              <option key={punishment.id} value={punishment.id}>
+                {punishment.title}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <fieldset className="mt-3">
           <legend className="text-sm text-stone-300">Frequency</legend>
           <div className="mt-2 flex flex-wrap gap-3 text-sm text-stone-300">
@@ -473,6 +515,8 @@ export function HabitsPage() {
                         {assignee?.displayName ?? 'Unassigned'}
                         {' · '}
                         streak {streak}
+                        {habit.linkedRewardId ? ' · auto reward linked' : ''}
+                        {habit.linkedPunishmentId ? ' · punishment linked' : ''}
                       </p>
                     </div>
                     {habit.status === 'active' && dueToday ? (

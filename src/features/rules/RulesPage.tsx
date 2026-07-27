@@ -15,6 +15,8 @@ import {
   restoreRule,
   updateRule,
 } from '@/features/rules/ruleService'
+import { useRewardsData } from '@/features/rewards/useRewardsData'
+import { applyPunishmentManually } from '@/features/rewards/rewardService'
 import { useRulesData } from '@/features/rules/useRulesData'
 import { formatLocalDateKey } from '@/lib/date'
 import type { Rule, RuleVersion } from '@/types/models'
@@ -49,6 +51,7 @@ export function RulesPage() {
   const { rules, categories, acknowledgments, loading, refresh } = useRulesData(relationshipId, {
     includeArchived: true,
   })
+  const { punishments } = useRewardsData(relationshipId, { includeArchived: false })
 
   const [showArchived, setShowArchived] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
@@ -391,6 +394,7 @@ export function RulesPage() {
                 myMember &&
                 ruleNeedsAcknowledgmentFrom(rule, user.id, myMember.role, acknowledgments)
               const versions = versionsByRule[rule.id] ?? []
+              const linkedPunishment = punishments.find((p) => p.id === rule.linkedPunishmentId)
 
               return (
                 <li
@@ -486,6 +490,28 @@ export function RulesPage() {
                     >
                       {expandedId === rule.id ? 'Hide history' : 'Version history'}
                     </button>
+                    {linkedPunishment ? (
+                      <button
+                        type="button"
+                        className="text-stone-400 hover:text-rose-300"
+                        onClick={() => {
+                          const defaultTarget =
+                            activeRelationship.members.find((m) => m.userId !== user.id)?.userId ??
+                            user.id
+                          void applyPunishmentManually({
+                            relationshipId: rule.relationshipId,
+                            punishmentId: linkedPunishment.id,
+                            targetUserId: defaultTarget,
+                            appliedByUserId: user.id,
+                            note: `Applied from rule: ${rule.title}`,
+                            ruleId: rule.id,
+                            source: 'rule_violation',
+                          })
+                        }}
+                      >
+                        Apply default consequence
+                      </button>
+                    ) : null}
                   </div>
 
                   {expandedId === rule.id ? (

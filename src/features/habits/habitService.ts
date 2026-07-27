@@ -10,6 +10,10 @@ import {
   where,
 } from 'firebase/firestore'
 import { getFirebaseDb } from '@/lib/firebase/app'
+import {
+  applyAutoRewardForHabitCompletion,
+  removeAutoRewardForHabitCompletion,
+} from '@/features/rewards/rewardService'
 import { isDemoMode } from '@/lib/firebase/config'
 import { createId } from '@/lib/id'
 import { readDemoState, updateDemoState } from '@/lib/demo/store'
@@ -175,6 +179,8 @@ export type CreateHabitInput = {
   frequency: HabitFrequency
   assignedToUserId: string
   createdByUserId: string
+  linkedRewardId?: string | null
+  linkedPunishmentId?: string | null
 }
 
 export async function createHabit(input: CreateHabitInput): Promise<Habit> {
@@ -191,8 +197,8 @@ export async function createHabit(input: CreateHabitInput): Promise<Habit> {
     frequency: normalizeFrequency(input.frequency),
     assignedToUserId: input.assignedToUserId,
     createdByUserId: input.createdByUserId,
-    linkedRewardId: null,
-    linkedPunishmentId: null,
+    linkedRewardId: input.linkedRewardId ?? null,
+    linkedPunishmentId: input.linkedPunishmentId ?? null,
     status: 'active',
     createdAt: now,
     updatedAt: now,
@@ -219,6 +225,8 @@ export type UpdateHabitInput = {
   categoryId?: string | null
   frequency?: HabitFrequency
   assignedToUserId?: string
+  linkedRewardId?: string | null
+  linkedPunishmentId?: string | null
   status?: HabitStatus
 }
 
@@ -241,6 +249,12 @@ export async function updateHabit(
           frequency:
             patch.frequency !== undefined ? normalizeFrequency(patch.frequency) : h.frequency,
           assignedToUserId: patch.assignedToUserId ?? h.assignedToUserId,
+          linkedRewardId:
+            patch.linkedRewardId !== undefined ? patch.linkedRewardId : h.linkedRewardId,
+          linkedPunishmentId:
+            patch.linkedPunishmentId !== undefined
+              ? patch.linkedPunishmentId
+              : h.linkedPunishmentId,
           status: patch.status ?? h.status,
           updatedAt: new Date().toISOString(),
         }
@@ -263,6 +277,8 @@ export async function updateHabit(
     categoryId?: string | null
     frequency?: HabitFrequency
     assignedToUserId?: string
+    linkedRewardId?: string | null
+    linkedPunishmentId?: string | null
     status?: HabitStatus
   } = {
     updatedAt: new Date().toISOString(),
@@ -272,6 +288,10 @@ export async function updateHabit(
   if (patch.categoryId !== undefined) payload.categoryId = patch.categoryId
   if (patch.frequency !== undefined) payload.frequency = normalizeFrequency(patch.frequency)
   if (patch.assignedToUserId !== undefined) payload.assignedToUserId = patch.assignedToUserId
+  if (patch.linkedRewardId !== undefined) payload.linkedRewardId = patch.linkedRewardId
+  if (patch.linkedPunishmentId !== undefined) {
+    payload.linkedPunishmentId = patch.linkedPunishmentId
+  }
   if (patch.status !== undefined) payload.status = patch.status
   await updateDoc(ref, payload)
 
@@ -295,6 +315,7 @@ export async function setHabitCompletedForDate(input: {
   completed: boolean
 }): Promise<HabitCompletion | null> {
   const completedOn = input.completedOn ?? toLocalDateKey()
+  const habit = await getHabitById(input.relationshipId, input.habitId)
 
   if (isDemoMode()) {
     let result: HabitCompletion | null = null
@@ -329,6 +350,19 @@ export async function setHabitCompletedForDate(input: {
       }
     })
     notifyDemoHabitsChanged()
+    if (input.completed && result) {
+      await applyAutoRewardForHabitCompletion({
+        habit,
+        completedOn,
+        appliedByUserId: input.userId,
+      })
+    } else if (!input.completed) {
+      await removeAutoRewardForHabitCompletion({
+        relationshipId: input.relationshipId,
+        habitId: input.habitId,
+        occurrenceKey: completedOn,
+      })
+    }
     return result
   }
 
@@ -350,11 +384,39 @@ export async function setHabitCompletedForDate(input: {
       createdAt: new Date().toISOString(),
     }
     await setDoc(doc(col, completion.id), completion)
+    await applyAutoRewardForHabitCompletion({
+      habit,
+      completedOn,
+      appliedByUserId: input.userId,
+    })
     return completion
   }
 
   await Promise.all(existingSnap.docs.map((d) => deleteDoc(d.ref)))
+  await removeAutoRewardForHabitCompletion({
+    relationshipId: input.relationshipId,
+    habitId: input.habitId,
+    occurrenceKey: completedOn,
+  })
   return null
+}
+
+export async function getHabitById(
+  relationshipId: string,
+  habitId: string,
+): Promise<Habit> {
+  if (isDemoMode()) {
+    const habit = readDemoState().habits.find(
+      (h) => h.relationshipId === relationshipId && h.id === habitId,
+    )
+    if (!habit) throw new Error('Habit not found.')
+    return habit
+  }
+  const db = getFirebaseDb()
+  if (!db) throw new Error('Firestore is not configured.')
+  const snap = await getDoc(doc(db, 'relationships', relationshipId, 'habits', habitId))
+  if (!snap.exists()) throw new Error('Habit not found.')
+  return snap.data() as Habit
 }
 
 function normalizeFrequency(frequency: HabitFrequency): HabitFrequency {

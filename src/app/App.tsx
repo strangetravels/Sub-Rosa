@@ -7,6 +7,7 @@ import { OnboardingPage } from '@/features/relationships/OnboardingPage'
 import { PartnersSettingsPage } from '@/features/relationships/PartnersSettingsPage'
 import { DashboardPage } from '@/features/relationships/DashboardPage'
 import { HabitsPage } from '@/features/habits/HabitsPage'
+import { RewardsPage } from '@/features/rewards/RewardsPage'
 import { RulesPage } from '@/features/rules/RulesPage'
 import { useAuth } from '@/features/auth/AuthProvider'
 
@@ -36,15 +37,7 @@ export function App() {
             <Route index element={<DashboardPage />} />
             <Route path="habits" element={<HabitsPage />} />
             <Route path="rules" element={<RulesPage />} />
-            <Route
-              path="rewards"
-              element={
-                <PlaceholderPage
-                  title="Rewards & Punishments"
-                  description="Catalogs, manual apply, and auto-triggers from habits."
-                />
-              }
-            />
+            <Route path="rewards" element={<RewardsPage />} />
             <Route
               path="points"
               element={
