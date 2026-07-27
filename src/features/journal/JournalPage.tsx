@@ -709,12 +709,12 @@ export function JournalPage() {
           title="Unlock private entries"
           subtitle="Enter your app passcode to view private journal entries on this device."
           onUnlock={async (pin) => {
-            const ok = await confirmPasscode(pin)
-            if (ok) {
+            const result = await confirmPasscode(pin)
+            if (result.ok) {
               setPrivateUnlocked(true)
               setShowPrivateUnlock(false)
             }
-            return ok
+            return result
           }}
         />
       ) : null}

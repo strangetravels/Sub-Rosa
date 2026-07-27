@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useSecurity } from '@/features/security/SecurityProvider'
 import {
+  changePasscode,
   clearPasscode,
   setPasscode,
   validatePasscodeFormat,
@@ -35,12 +36,21 @@ export function SecuritySettingsPanel() {
   const [newPin, setNewPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [currentPin, setCurrentPin] = useState('')
+  const [changeCurrentPin, setChangeCurrentPin] = useState('')
+  const [changeNewPin, setChangeNewPin] = useState('')
+  const [changeConfirmPin, setChangeConfirmPin] = useState('')
+  const [showChangeForm, setShowChangeForm] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [exportedThisSession, setExportedThisSession] = useState(false)
+  const [acknowledgedSkipExport, setAcknowledgedSkipExport] = useState(false)
 
   if (!user || !settings) return null
+
+  const canDelete =
+    deleteConfirm === 'DELETE' && (exportedThisSession || acknowledgedSkipExport)
 
   return (
     <div className="space-y-8">
@@ -62,7 +72,18 @@ export function SecuritySettingsPanel() {
                   ].join(' ')}
                   onClick={() => setThemeId(theme.id)}
                 >
-                  <span className="font-medium">{theme.label}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="flex gap-0.5" aria-hidden>
+                      {theme.preview.map((color) => (
+                        <span
+                          key={color}
+                          className="h-3 w-3 rounded-sm border border-stone-600/60"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </span>
+                    <span className="font-medium">{theme.label}</span>
+                  </span>
                   <span className="mt-0.5 block text-xs text-stone-500">{theme.description}</span>
                 </button>
               </li>
@@ -76,8 +97,9 @@ export function SecuritySettingsPanel() {
           <div>
             <h4 className="text-sm font-medium text-stone-200">Discreet mode</h4>
             <p className="mt-1 text-xs text-stone-500">
-              Use a generic app name (“Notes”) in the title bar and sidebar. Reinstall the PWA
-              if you also want a generic home-screen label from the install prompt.
+              Use a generic app name (“Notes”) and favicon in the title bar and sidebar.
+              Reinstall the PWA if you also want a generic home-screen label from the install
+              prompt.
             </p>
           </div>
           <input
@@ -92,7 +114,7 @@ export function SecuritySettingsPanel() {
         <h4 className="text-sm font-medium text-stone-200">App passcode</h4>
         <p className="mt-1 text-xs text-stone-500">
           Device-local PIN lock (not your login password). Auto-locks after inactivity or when
-          the tab is hidden.
+          the tab is hidden. Five wrong attempts trigger a short lockout.
         </p>
 
         {settings.passcodeEnabled ? (
@@ -107,7 +129,99 @@ export function SecuritySettingsPanel() {
               >
                 Lock now
               </button>
+              <button
+                type="button"
+                className="rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:border-stone-400"
+                onClick={() => {
+                  setShowChangeForm((v) => !v)
+                  setError(null)
+                  setMessage(null)
+                }}
+              >
+                {showChangeForm ? 'Cancel change' : 'Change passcode'}
+              </button>
             </div>
+
+            {showChangeForm ? (
+              <div className="space-y-3 rounded-md border border-stone-800 bg-stone-950/40 p-3">
+                <label className="block text-sm text-stone-300">
+                  Current passcode
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 tracking-[0.3em] text-stone-50"
+                    value={changeCurrentPin}
+                    onChange={(e) =>
+                      setChangeCurrentPin(e.target.value.replace(/\D/g, '').slice(0, 8))
+                    }
+                    maxLength={8}
+                  />
+                </label>
+                <label className="block text-sm text-stone-300">
+                  New passcode (4–8 digits)
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 tracking-[0.3em] text-stone-50"
+                    value={changeNewPin}
+                    onChange={(e) =>
+                      setChangeNewPin(e.target.value.replace(/\D/g, '').slice(0, 8))
+                    }
+                    maxLength={8}
+                  />
+                </label>
+                <label className="block text-sm text-stone-300">
+                  Confirm new passcode
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 tracking-[0.3em] text-stone-50"
+                    value={changeConfirmPin}
+                    onChange={(e) =>
+                      setChangeConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 8))
+                    }
+                    maxLength={8}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={busy || changeCurrentPin.length < 4 || changeNewPin.length < 4}
+                  className="rounded-md border border-rose-700 bg-rose-950/40 px-3 py-1.5 text-sm text-rose-200 hover:border-rose-500 disabled:opacity-40"
+                  onClick={() => {
+                    const formatError = validatePasscodeFormat(changeNewPin)
+                    if (formatError) {
+                      setError(formatError)
+                      return
+                    }
+                    if (changeNewPin !== changeConfirmPin) {
+                      setError('New passcodes do not match.')
+                      return
+                    }
+                    setBusy(true)
+                    setError(null)
+                    setMessage(null)
+                    void changePasscode(user.id, changeCurrentPin, changeNewPin)
+                      .then(() => {
+                        setChangeCurrentPin('')
+                        setChangeNewPin('')
+                        setChangeConfirmPin('')
+                        setShowChangeForm(false)
+                        setMessage('Passcode updated.')
+                        refreshSettings()
+                      })
+                      .catch((err: unknown) =>
+                        setError(
+                          err instanceof Error ? err.message : 'Could not change passcode.',
+                        ),
+                      )
+                      .finally(() => setBusy(false))
+                  }}
+                >
+                  Save new passcode
+                </button>
+              </div>
+            ) : null}
+
             <label className="block text-sm text-stone-300">
               Auto-lock
               <select
@@ -241,12 +355,17 @@ export function SecuritySettingsPanel() {
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            className="rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:border-stone-400"
+            disabled={busy}
+            className="rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:border-stone-400 disabled:opacity-40"
             onClick={() => {
               setBusy(true)
               setError(null)
               void downloadUserDataExport(user)
-                .then(() => setMessage('Export downloaded.'))
+                .then(() => {
+                  setExportedThisSession(true)
+                  setAcknowledgedSkipExport(false)
+                  setMessage('Export downloaded. You can delete your account when ready.')
+                })
                 .catch((err: unknown) =>
                   setError(err instanceof Error ? err.message : 'Export failed.'),
                 )
@@ -255,13 +374,29 @@ export function SecuritySettingsPanel() {
           >
             Download data export
           </button>
+          {exportedThisSession ? (
+            <span className="self-center text-xs text-emerald-400">Export ready this session</span>
+          ) : null}
         </div>
         <div className="mt-4 rounded-md border border-rose-900/60 bg-rose-950/20 p-3">
           <p className="text-sm text-rose-200">Delete account</p>
           <p className="mt-1 text-xs text-stone-500">
-            Type DELETE to confirm. This signs you out and removes your local account data.
-            Export first if you want a copy.
+            Download an export first, or acknowledge that you are deleting without one. Then type
+            DELETE to confirm.
           </p>
+          {!exportedThisSession ? (
+            <label className="mt-3 flex items-start gap-2 text-xs text-stone-400">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={acknowledgedSkipExport}
+                onChange={(e) => setAcknowledgedSkipExport(e.target.checked)}
+              />
+              <span>
+                I understand I am deleting without downloading an export in this session.
+              </span>
+            </label>
+          ) : null}
           <input
             type="text"
             className="mt-2 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-1.5 text-sm text-stone-100"
@@ -271,9 +406,13 @@ export function SecuritySettingsPanel() {
           />
           <button
             type="button"
-            disabled={busy || deleteConfirm !== 'DELETE'}
+            disabled={busy || !canDelete}
             className="mt-2 rounded-md border border-rose-700 px-3 py-1.5 text-sm text-rose-300 hover:border-rose-500 disabled:opacity-40"
             onClick={() => {
+              if (!exportedThisSession && !acknowledgedSkipExport) {
+                setError('Download an export first, or confirm you are skipping it.')
+                return
+              }
               setBusy(true)
               setError(null)
               void deleteAccountLocal(user)

@@ -10,15 +10,16 @@ import {
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   applyAppearanceForUser,
+  attemptPasscode,
   clearSessionUnlock,
   getSecuritySettings,
   isSessionUnlocked,
   markSessionUnlocked,
   shouldLockApp,
   updateSecuritySettings,
-  verifyPasscode,
   type AutoLockMinutes,
   type DeviceSecuritySettings,
+  type UnlockAttemptResult,
 } from '@/features/security/securitySettings'
 import type { ThemeId } from '@/features/security/themes'
 import { PasscodeGate } from '@/features/security/PasscodeGate'
@@ -27,14 +28,14 @@ type SecurityContextValue = {
   settings: DeviceSecuritySettings | null
   locked: boolean
   refreshSettings: () => void
-  unlockWithPasscode: (pin: string) => Promise<boolean>
+  unlockWithPasscode: (pin: string) => Promise<UnlockAttemptResult>
   lockNow: () => void
   setThemeId: (themeId: ThemeId) => void
   setDiscreetMode: (enabled: boolean) => void
   setAutoLockMinutes: (minutes: AutoLockMinutes) => void
   setJournalPasscodeLock: (enabled: boolean) => void
   /** Re-verify passcode for journal secondary lock. */
-  confirmPasscode: (pin: string) => Promise<boolean>
+  confirmPasscode: (pin: string) => Promise<UnlockAttemptResult>
 }
 
 const SecurityContext = createContext<SecurityContextValue | null>(null)
@@ -110,13 +111,15 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
   }, [user, settings?.passcodeEnabled, settings?.autoLockMinutes])
 
   const unlockWithPasscode = useCallback(
-    async (pin: string) => {
-      if (!user) return false
-      const ok = await verifyPasscode(user.id, pin)
-      if (!ok) return false
+    async (pin: string): Promise<UnlockAttemptResult> => {
+      if (!user) {
+        return { ok: false, reason: 'disabled', message: 'Not signed in.' }
+      }
+      const result = await attemptPasscode(user.id, pin)
+      if (!result.ok) return result
       markSessionUnlocked(user.id)
       setLocked(false)
-      return true
+      return result
     },
     [user],
   )
@@ -160,9 +163,11 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
   )
 
   const confirmPasscode = useCallback(
-    async (pin: string) => {
-      if (!user) return false
-      return verifyPasscode(user.id, pin)
+    async (pin: string): Promise<UnlockAttemptResult> => {
+      if (!user) {
+        return { ok: false, reason: 'disabled', message: 'Not signed in.' }
+      }
+      return attemptPasscode(user.id, pin)
     },
     [user],
   )

@@ -109,6 +109,8 @@ Environment variables are documented in [`.env.example`](.env.example). Without 
 
 This app stores highly sensitive personal data. Do not log plaintext journal, chat, or rule bodies in crash reporting, analytics, or server logs. Prefer ciphertext-only server paths if Cloud Functions are added later.
 
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and known limitations.
+
 ## License
 
 Copyright (C) 2026 strangetravels
