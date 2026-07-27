@@ -187,7 +187,7 @@ export async function deliverContentKeyToPendingMembers(input: {
     if (member.userId === input.senderUserId) continue
     const recipientPublic = next.identityPublicKeys[member.userId]
     if (!recipientPublic) continue
-    if (next.wrappedContentKeys[member.userId] && next.sealedContentKeys[member.userId]) {
+    if (next.wrappedContentKeys[member.userId] || next.sealedContentKeys[member.userId]) {
       continue
     }
 
@@ -285,4 +285,13 @@ export async function lockRelationshipContentKey(relationshipId: string): Promis
 
 export async function getUnlockedContentKey(relationshipId: string): Promise<CryptoKey | null> {
   return loadUnlockedContentKey(relationshipId)
+}
+
+export function needsSealedKeyClaim(
+  relationship: Relationship,
+  userId: string,
+): boolean {
+  const crypto = relationship.crypto
+  if (!crypto) return false
+  return Boolean(crypto.sealedContentKeys[userId] && !crypto.wrappedContentKeys[userId])
 }

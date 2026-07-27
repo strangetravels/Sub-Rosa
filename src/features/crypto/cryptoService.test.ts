@@ -7,10 +7,23 @@ import {
   unlockWithRecoveryPhrase,
   getRelationshipSafetyNumber,
   getUnlockedContentKey,
+  deliverContentKeyToPendingMembers,
+  claimSealedContentKey,
+  lockRelationshipContentKey,
+  needsSealedKeyClaim,
 } from '@/features/crypto/cryptoService'
-import { createRelationship, joinRelationshipByInvite } from '@/features/relationships/relationshipService'
+import {
+  createRelationship,
+  joinRelationshipByInvite,
+  updateRelationshipCrypto,
+} from '@/features/relationships/relationshipService'
 import { encryptText, decryptText } from '@/lib/crypto'
 import { createId } from '@/lib/id'
+import {
+  clearPendingPassphrase,
+  peekPendingPassphrase,
+  rememberPendingPassphrase,
+} from '@/features/crypto/pendingPassphrase'
 
 const PASS = 'encrypt-me-please'
 
@@ -99,5 +112,64 @@ describe('cryptoService pairing', () => {
       passphrase: 'brand-new-passphrase',
     })
     expect(unlocked).toBeTruthy()
+  })
+
+  it('delivers a sealed key for LDR then claims it on the joiner side', async () => {
+    const a = await signUp('ldr-a@example.com', 'secret123', 'LDR A')
+    const b = await signUp('ldr-b@example.com', 'secret123', 'LDR B')
+    const { relationship } = await createRelationship({
+      user: a,
+      name: 'Long Distance',
+      role: 'dominant',
+      passphrase: PASS,
+    })
+
+    // Simulate a second device: joiner must not see the unlocked content key.
+    await lockRelationshipContentKey(relationship.id)
+
+    const joined = await joinRelationshipByInvite({
+      user: b,
+      inviteCode: relationship.inviteCode,
+      role: 'submissive',
+      passphrase: `${PASS}-b`,
+    })
+    expect(joined.awaitingKeyDelivery).toBe(true)
+    expect(joined.relationship.crypto?.wrappedContentKeys[b.id]).toBeUndefined()
+
+    rememberPendingPassphrase(joined.relationship.id, `${PASS}-b`)
+    expect(peekPendingPassphrase(joined.relationship.id)).toBe(`${PASS}-b`)
+
+    // Creator unlocks on their device and seals for the joiner.
+    await unlockRelationshipContentKey({
+      relationship: joined.relationship,
+      userId: a.id,
+      passphrase: PASS,
+    })
+    const sealedCrypto = await deliverContentKeyToPendingMembers({
+      relationship: joined.relationship,
+      senderUserId: a.id,
+    })
+    expect(sealedCrypto?.sealedContentKeys[b.id]).toBeTruthy()
+
+    const withSeal = await updateRelationshipCrypto(joined.relationship.id, sealedCrypto!)
+    expect(needsSealedKeyClaim(withSeal, b.id)).toBe(true)
+
+    const claimed = await claimSealedContentKey({
+      relationship: withSeal,
+      userId: b.id,
+      passphrase: `${PASS}-b`,
+    })
+    clearPendingPassphrase(withSeal.id)
+
+    expect(claimed.wrappedContentKeys[b.id]).toBeTruthy()
+    const joinerKey = await unlockRelationshipContentKey({
+      relationship: { ...withSeal, crypto: claimed },
+      userId: b.id,
+      passphrase: `${PASS}-b`,
+    })
+    const payload = await encryptText(joinerKey, 'across devices')
+    const creatorKey = await getUnlockedContentKey(withSeal.id)
+    expect(creatorKey).toBeTruthy()
+    await expect(decryptText(creatorKey!, payload)).resolves.toBe('across devices')
   })
 })

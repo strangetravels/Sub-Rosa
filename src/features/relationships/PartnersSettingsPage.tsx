@@ -10,6 +10,7 @@ export function PartnersSettingsPage() {
     activeRelationship,
     setActiveRelationship,
     unlockActiveRelationship,
+    claimActiveSealedKey,
     restoreActiveRelationshipWithRecovery,
     deliverPendingKeys,
     getActiveSafetyNumber,
@@ -28,6 +29,12 @@ export function PartnersSettingsPage() {
   const hasWrap = Boolean(
     user && activeRelationship?.crypto?.wrappedContentKeys[user.id],
   )
+  const needsClaim = Boolean(
+    user &&
+      activeRelationship?.crypto?.sealedContentKeys[user.id] &&
+      !activeRelationship.crypto.wrappedContentKeys[user.id],
+  )
+  const awaitingDelivery = Boolean(activeRelationship && user && !hasWrap && !needsClaim)
   const hasRecovery = Boolean(activeRelationship?.crypto?.recoveryWrap)
 
   useEffect(() => {
@@ -95,7 +102,13 @@ export function PartnersSettingsPage() {
         <h3 className="text-sm font-medium text-stone-200">Encryption</h3>
         <p className="mt-2 text-sm text-stone-400">
           Content keys are wrapped with your encryption passphrase (separate from login).
-          {hasWrap ? ' This account has a wrapped key on file.' : ' Wrapped key not ready yet.'}
+          {hasWrap
+            ? ' This account has a wrapped key on file.'
+            : needsClaim
+              ? ' A sealed key is ready — finish pairing below.'
+              : awaitingDelivery
+                ? ' Waiting for your partner to deliver the content key.'
+                : ' Wrapped key not ready yet.'}
         </p>
 
         {safetyNumber ? (
@@ -112,7 +125,7 @@ export function PartnersSettingsPage() {
         )}
 
         <label className="mt-4 block text-sm text-stone-300">
-          Unlock with passphrase
+          {needsClaim ? 'Encryption passphrase' : 'Unlock with passphrase'}
           <input
             type="password"
             className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
@@ -124,24 +137,50 @@ export function PartnersSettingsPage() {
         </label>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={busy || !passphrase}
-            className="rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:border-stone-400 hover:text-stone-100 disabled:opacity-50"
-            onClick={() => {
-              setBusy(true)
-              setCryptoError(null)
-              setCryptoMessage(null)
-              void unlockActiveRelationship(passphrase)
-                .then(() => setCryptoMessage('Content key unlocked on this device.'))
-                .catch((err: unknown) =>
-                  setCryptoError(err instanceof Error ? err.message : 'Unlock failed.'),
-                )
-                .finally(() => setBusy(false))
-            }}
-          >
-            Unlock
-          </button>
+          {needsClaim ? (
+            <button
+              type="button"
+              disabled={busy || !passphrase}
+              className="rounded-md border border-rose-700 bg-rose-950/40 px-3 py-1.5 text-sm text-rose-200 hover:border-rose-500 disabled:opacity-50"
+              onClick={() => {
+                setBusy(true)
+                setCryptoError(null)
+                setCryptoMessage(null)
+                void claimActiveSealedKey(passphrase)
+                  .then(() => {
+                    setCryptoMessage('Pairing finished. Content key unlocked on this device.')
+                    setPassphrase('')
+                  })
+                  .catch((err: unknown) =>
+                    setCryptoError(
+                      err instanceof Error ? err.message : 'Could not claim sealed key.',
+                    ),
+                  )
+                  .finally(() => setBusy(false))
+              }}
+            >
+              Finish pairing
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy || !passphrase || !hasWrap}
+              className="rounded-md border border-stone-600 px-3 py-1.5 text-sm text-stone-300 hover:border-stone-400 hover:text-stone-100 disabled:opacity-50"
+              onClick={() => {
+                setBusy(true)
+                setCryptoError(null)
+                setCryptoMessage(null)
+                void unlockActiveRelationship(passphrase)
+                  .then(() => setCryptoMessage('Content key unlocked on this device.'))
+                  .catch((err: unknown) =>
+                    setCryptoError(err instanceof Error ? err.message : 'Unlock failed.'),
+                  )
+                  .finally(() => setBusy(false))
+              }}
+            >
+              Unlock
+            </button>
+          )}
           <button
             type="button"
             disabled={busy}

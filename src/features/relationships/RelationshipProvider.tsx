@@ -1,8 +1,10 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -16,13 +18,21 @@ import {
   type JoinRelationshipResult,
 } from '@/features/relationships/relationshipService'
 import {
+  claimSealedContentKey,
   deliverContentKeyToPendingMembers,
   getRelationshipSafetyNumber,
+  needsSealedKeyClaim,
   unlockRelationshipContentKey,
   unlockWithRecoveryPhrase,
 } from '@/features/crypto/cryptoService'
+import {
+  clearAllPendingPassphrases,
+  clearPendingPassphrase,
+  peekPendingPassphrase,
+  rememberPendingPassphrase,
+} from '@/features/crypto/pendingPassphrase'
 import { useAuth } from '@/features/auth/AuthProvider'
-import type { Relationship, RelationshipRole } from '@/types/models'
+import type { Relationship, RelationshipCrypto, RelationshipRole } from '@/types/models'
 
 type RelationshipContextValue = {
   relationships: Relationship[]
@@ -40,6 +50,7 @@ type RelationshipContextValue = {
     passphrase: string,
   ) => Promise<JoinRelationshipResult>
   unlockActiveRelationship: (passphrase: string) => Promise<void>
+  claimActiveSealedKey: (passphrase: string) => Promise<void>
   restoreActiveRelationshipWithRecovery: (
     recoveryPhrase: string,
     newPassphrase: string,
@@ -55,12 +66,18 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
   const [relationships, setRelationships] = useState<Relationship[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [hydratedForUserId, setHydratedForUserId] = useState<string | null>(null)
+  const relationshipsRef = useRef(relationships)
+  const syncInFlight = useRef(false)
+  const pendingResync = useRef(false)
+
+  relationshipsRef.current = relationships
 
   useEffect(() => {
     if (!user) {
       setRelationships([])
       setActiveId(null)
       setHydratedForUserId(null)
+      clearAllPendingPassphrases()
       return
     }
 
@@ -78,6 +95,69 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
     () => relationships.find((r) => r.id === activeId) ?? null,
     [relationships, activeId],
   )
+
+  const applyCryptoUpdate = useCallback(
+    async (relationshipId: string, crypto: RelationshipCrypto) => {
+      const updated = await updateRelationshipCrypto(relationshipId, crypto)
+      setRelationships((prev) =>
+        prev.map((rel) => (rel.id === updated.id ? updated : rel)),
+      )
+      relationshipsRef.current = relationshipsRef.current.map((rel) =>
+        rel.id === updated.id ? updated : rel,
+      )
+      return updated
+    },
+    [],
+  )
+
+  const runCryptoHydration = useCallback(async () => {
+    if (!user) return
+    if (syncInFlight.current) {
+      pendingResync.current = true
+      return
+    }
+
+    syncInFlight.current = true
+    try {
+      do {
+        pendingResync.current = false
+        const list = relationshipsRef.current
+
+        for (const rel of list) {
+          const delivered = await deliverContentKeyToPendingMembers({
+            relationship: rel,
+            senderUserId: user.id,
+          })
+          if (delivered) {
+            await applyCryptoUpdate(rel.id, delivered)
+            pendingResync.current = true
+            break
+          }
+
+          if (!needsSealedKeyClaim(rel, user.id)) continue
+          const passphrase = peekPendingPassphrase(rel.id)
+          if (!passphrase) continue
+
+          const claimed = await claimSealedContentKey({
+            relationship: rel,
+            userId: user.id,
+            passphrase,
+          })
+          await applyCryptoUpdate(rel.id, claimed)
+          clearPendingPassphrase(rel.id)
+          pendingResync.current = true
+          break
+        }
+      } while (pendingResync.current)
+    } finally {
+      syncInFlight.current = false
+    }
+  }, [user, applyCryptoUpdate])
+
+  useEffect(() => {
+    if (!user || loading) return
+    void runCryptoHydration()
+  }, [user, loading, relationships, runCryptoHydration])
 
   const value = useMemo<RelationshipContextValue>(
     () => ({
@@ -117,6 +197,9 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
           role,
           passphrase,
         })
+        if (joined.awaitingKeyDelivery) {
+          rememberPendingPassphrase(joined.relationship.id, passphrase)
+        }
         setRelationships((prev) => {
           const without = prev.filter((r) => r.id !== joined.relationship.id)
           return [...without, joined.relationship]
@@ -132,6 +215,23 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
           userId: user.id,
           passphrase,
         })
+        const delivered = await deliverContentKeyToPendingMembers({
+          relationship: activeRelationship,
+          senderUserId: user.id,
+        })
+        if (delivered) {
+          await applyCryptoUpdate(activeRelationship.id, delivered)
+        }
+      },
+      async claimActiveSealedKey(passphrase) {
+        if (!user || !activeRelationship) throw new Error('No active relationship.')
+        const claimed = await claimSealedContentKey({
+          relationship: activeRelationship,
+          userId: user.id,
+          passphrase,
+        })
+        await applyCryptoUpdate(activeRelationship.id, claimed)
+        clearPendingPassphrase(activeRelationship.id)
       },
       async restoreActiveRelationshipWithRecovery(recoveryPhrase, newPassphrase) {
         if (!user || !activeRelationship) throw new Error('No active relationship.')
@@ -141,13 +241,14 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
           newPassphrase,
           userId: user.id,
         })
-        const updated = await updateRelationshipCrypto(
-          activeRelationship.id,
-          restored.crypto,
-        )
-        setRelationships((prev) =>
-          prev.map((rel) => (rel.id === updated.id ? updated : rel)),
-        )
+        const updated = await applyCryptoUpdate(activeRelationship.id, restored.crypto)
+        const delivered = await deliverContentKeyToPendingMembers({
+          relationship: updated,
+          senderUserId: user.id,
+        })
+        if (delivered) {
+          await applyCryptoUpdate(activeRelationship.id, delivered)
+        }
       },
       async deliverPendingKeys() {
         if (!user || !activeRelationship) return
@@ -156,17 +257,14 @@ export function RelationshipProvider({ children }: { children: ReactNode }) {
           senderUserId: user.id,
         })
         if (!nextCrypto) return
-        const updated = await updateRelationshipCrypto(activeRelationship.id, nextCrypto)
-        setRelationships((prev) =>
-          prev.map((rel) => (rel.id === updated.id ? updated : rel)),
-        )
+        await applyCryptoUpdate(activeRelationship.id, nextCrypto)
       },
       async getActiveSafetyNumber() {
         if (!activeRelationship) return null
         return getRelationshipSafetyNumber(activeRelationship)
       },
     }),
-    [relationships, activeRelationship, loading, user],
+    [relationships, activeRelationship, loading, user, applyCryptoUpdate],
   )
 
   return (
