@@ -11,6 +11,7 @@ import { PointsPage } from '@/features/points/PointsPage'
 import { RewardsPage } from '@/features/rewards/RewardsPage'
 import { RulesPage } from '@/features/rules/RulesPage'
 import { JournalPage } from '@/features/journal/JournalPage'
+import { ChatPage } from '@/features/chat/ChatPage'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 function AuthEntry() {
@@ -42,15 +43,7 @@ export function App() {
             <Route path="rewards" element={<RewardsPage />} />
             <Route path="points" element={<PointsPage />} />
             <Route path="journal" element={<JournalPage />} />
-            <Route
-              path="chat"
-              element={
-                <PlaceholderPage
-                  title="Chat"
-                  description="Real-time encrypted messaging for the active relationship."
-                />
-              }
-            />
+            <Route path="chat" element={<ChatPage />} />
             <Route
               path="stats"
               element={
