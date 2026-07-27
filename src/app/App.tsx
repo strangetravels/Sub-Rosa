@@ -1,101 +1,112 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/AppShell'
 import { PlaceholderPage } from '@/components/PlaceholderPage'
+import { RequireAuth, RequireRelationship } from '@/app/RequireAuth'
+import { AuthPage } from '@/features/auth/AuthPage'
+import { OnboardingPage } from '@/features/relationships/OnboardingPage'
+import { PartnersSettingsPage } from '@/features/relationships/PartnersSettingsPage'
+import { DashboardPage } from '@/features/relationships/DashboardPage'
+import { useAuth } from '@/features/auth/AuthProvider'
+
+function AuthEntry() {
+  const { user, loading } = useAuth()
+  if (loading) {
+    return (
+      <div className="flex min-h-full items-center justify-center text-sm text-stone-400">
+        Loading…
+      </div>
+    )
+  }
+  if (user) return <Navigate to="/" replace />
+  return <AuthPage />
+}
 
 export function App() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
-        <Route
-          index
-          element={
-            <PlaceholderPage
-              title="Dashboard"
-              description="Today’s habits, points balance, and quick actions will live here."
+      <Route path="/auth" element={<AuthEntry />} />
+
+      <Route element={<RequireAuth />}>
+        <Route path="/onboarding" element={<OnboardingPage />} />
+
+        <Route element={<RequireRelationship />}>
+          <Route element={<AppShell />}>
+            <Route index element={<DashboardPage />} />
+            <Route
+              path="habits"
+              element={
+                <PlaceholderPage
+                  title="Habits & Tasks"
+                  description="Create, edit, and archive recurring habits for the active relationship."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="habits"
-          element={
-            <PlaceholderPage
-              title="Habits & Tasks"
-              description="Create, edit, and archive recurring habits for the active relationship."
+            <Route
+              path="rules"
+              element={
+                <PlaceholderPage
+                  title="Rules"
+                  description="Versioned rule library with optional acknowledgment."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="rules"
-          element={
-            <PlaceholderPage
-              title="Rules"
-              description="Versioned rule library with optional acknowledgment."
+            <Route
+              path="rewards"
+              element={
+                <PlaceholderPage
+                  title="Rewards & Punishments"
+                  description="Catalogs, manual apply, and auto-triggers from habits."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="rewards"
-          element={
-            <PlaceholderPage
-              title="Rewards & Punishments"
-              description="Catalogs, manual apply, and auto-triggers from habits."
+            <Route
+              path="points"
+              element={
+                <PlaceholderPage
+                  title="Points"
+                  description="Ledger balance, history, and reward store."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="points"
-          element={
-            <PlaceholderPage
-              title="Points"
-              description="Ledger balance, history, and reward store."
+            <Route
+              path="journal"
+              element={
+                <PlaceholderPage
+                  title="Journal"
+                  description="Private and shared encrypted entries, prompts, and streaks."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="journal"
-          element={
-            <PlaceholderPage
-              title="Journal"
-              description="Private and shared encrypted entries, prompts, and streaks."
+            <Route
+              path="chat"
+              element={
+                <PlaceholderPage
+                  title="Chat"
+                  description="Real-time encrypted messaging for the active relationship."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="chat"
-          element={
-            <PlaceholderPage
-              title="Chat"
-              description="Real-time encrypted messaging for the active relationship."
+            <Route
+              path="stats"
+              element={
+                <PlaceholderPage
+                  title="Stats"
+                  description="Completion rates, points trends, and streak analytics."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="stats"
-          element={
-            <PlaceholderPage
-              title="Stats"
-              description="Completion rates, points trends, and streak analytics."
+            <Route path="settings" element={<PartnersSettingsPage />} />
+            <Route
+              path="*"
+              element={
+                <PlaceholderPage
+                  title="Not found"
+                  description="That screen isn’t part of this build yet."
+                />
+              }
             />
-          }
-        />
-        <Route
-          path="settings"
-          element={
-            <PlaceholderPage
-              title="Settings"
-              description="Theme, passcode, partner management, and notifications."
-            />
-          }
-        />
-        <Route
-          path="*"
-          element={
-            <PlaceholderPage
-              title="Not found"
-              description="That screen isn’t part of the scaffold yet."
-            />
-          }
-        />
+          </Route>
+        </Route>
       </Route>
     </Routes>
   )
