@@ -7,7 +7,7 @@ Private habit and task tracking for consensual dominant/submissive (D/s) relatio
 - **Habits & tasks** — recurring habits (daily / weekdays / X× per week), categories, streaks, completion history, today’s dashboard with “assigned to me” filter
 - **Rules** — versioned rule library, category filters, optional partner acknowledgment, per-version ack roster, optional default-consequence link, encrypted rule bodies when the content key is unlocked
 - **Rewards & punishments** — catalogs with categories, manual apply, history log, habit auto-reward on completion and auto-punishment on miss, rule default consequences, encrypted descriptions when the content key is unlocked
-- **Points** — ledger, balance, reward store *(roadmap)*
+- **Points** — per-member ledger and balance, habit completion earnings, manual grants, reward store spending
 - **Journal** — private or shared entries per post, prompts, streak rewards *(roadmap)*
 - **Chat** — real-time messaging per relationship *(roadmap)*
 - **Multi-partner** — fully separate data per relationship, with a workspace-style switcher
@@ -51,7 +51,8 @@ If rule, reward, or punishment text was stored encrypted and the device key is l
 | Habits CRUD, categories, streaks, history, dashboard today list | Done |
 | Rules library, versions, acknowledgment, encrypted bodies | Done |
 | Rewards & punishments catalogs, apply, history, habit/rule triggers | Done |
-| Points / journal / chat / stats / FCM / safety UI | Not yet |
+| Points ledger, balance, habit earnings, reward store | Done |
+| Journal / chat / stats / FCM / safety UI | Not yet |
 
 ## Roadmap
 
