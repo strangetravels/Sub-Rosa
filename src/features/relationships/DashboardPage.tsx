@@ -28,6 +28,8 @@ import {
   previewChatBody,
 } from '@/features/chat/chatService'
 import { useChatData } from '@/features/chat/useChatData'
+import { formatPercent } from '@/features/stats/statsLogic'
+import { useStatsData } from '@/features/stats/useStatsData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 
 export function DashboardPage() {
@@ -53,6 +55,12 @@ export function DashboardPage() {
     user?.id,
     { markRead: false },
   )
+  const {
+    habitStats: dashHabitStats,
+    pointsStats: dashPointsStats,
+    journalStreak: dashJournalStreak,
+    loading: statsLoading,
+  } = useStatsData(activeRelationship?.id, user?.id, activeRelationship?.members ?? [])
   const { rules, acknowledgments, loading: rulesLoading } = useRulesData(activeRelationship?.id)
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
@@ -104,6 +112,37 @@ export function DashboardPage() {
               Open ledger
             </NavLink>
           </div>
+        </div>
+      ) : null}
+
+      {activeRelationship && user ? (
+        <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs uppercase tracking-wide text-stone-500">Stats snapshot</p>
+            <NavLink to="/stats" className="text-xs text-rose-400 hover:text-rose-300">
+              Open stats
+            </NavLink>
+          </div>
+          {statsLoading ? (
+            <p className="mt-2 text-sm text-stone-500">Loading…</p>
+          ) : (
+            <dl className="mt-3 grid grid-cols-3 gap-3 text-center">
+              <div>
+                <dt className="text-[11px] text-stone-500">Habit rate</dt>
+                <dd className="mt-1 text-lg font-semibold text-stone-50">
+                  {formatPercent(dashHabitStats.overallRate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-stone-500">Points net</dt>
+                <dd className="mt-1 text-lg font-semibold text-stone-50">{dashPointsStats.net}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-stone-500">Journal streak</dt>
+                <dd className="mt-1 text-lg font-semibold text-stone-50">{dashJournalStreak}</dd>
+              </div>
+            </dl>
+          )}
         </div>
       ) : null}
 
