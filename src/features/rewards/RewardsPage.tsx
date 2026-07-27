@@ -26,6 +26,23 @@ function isLockedText(value: string): boolean {
   return value === LOCKED_TEXT || value === DECRYPT_FAILED_TEXT
 }
 
+function friendlySource(source: string): string {
+  switch (source) {
+    case 'manual':
+      return 'Manual'
+    case 'habit_completion':
+      return 'Habit completion'
+    case 'habit_miss':
+      return 'Habit miss'
+    case 'rule_violation':
+      return 'Rule violation'
+    case 'reward_purchase':
+      return 'Reward purchase'
+    default:
+      return source
+  }
+}
+
 export function RewardsPage() {
   const { user } = useAuth()
   const { activeRelationship } = useRelationship()
@@ -489,7 +506,7 @@ export function RewardsPage() {
                     {entry.itemType === 'reward' ? 'Reward' : 'Punishment'}: {entry.itemTitle}
                   </p>
                   <p className="mt-1 text-xs text-stone-500">
-                    {entry.source} · {target?.displayName ?? 'Unknown target'} · by{' '}
+                    {friendlySource(entry.source)} · {target?.displayName ?? 'Unknown target'} · by{' '}
                     {by?.displayName ?? 'Unknown'} ·{' '}
                     {formatLocalDateKey(entry.appliedAt.slice(0, 10))}
                   </p>

@@ -566,6 +566,7 @@ export function HabitsPage() {
                         {assignee?.displayName ?? 'Unassigned'}
                         {' · '}
                         streak {streak}
+                        {habit.pointValue ? ` · ${habit.pointValue} pts` : ''}
                         {habit.linkedRewardId ? ' · auto reward linked' : ''}
                         {habit.linkedPunishmentId ? ' · punishment linked' : ''}
                       </p>

@@ -35,7 +35,15 @@ export function PointsPage() {
   const { user } = useAuth()
   const { activeRelationship } = useRelationship()
   const relationshipId = activeRelationship?.id
-  const { balance, ledger, loading, refresh } = usePointsData(relationshipId, user?.id)
+  const memberUserIds = useMemo(
+    () => activeRelationship?.members.map((m) => m.userId) ?? [],
+    [activeRelationship],
+  )
+  const { balance, memberBalances, ledger, loading, refresh } = usePointsData(
+    relationshipId,
+    user?.id,
+    memberUserIds,
+  )
   const { rewards, categories } = useRewardsData(relationshipId, { includeArchived: false })
 
   const [grantUserId, setGrantUserId] = useState('')
@@ -43,11 +51,33 @@ export function PointsPage() {
   const [grantNote, setGrantNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [storeNote, setStoreNote] = useState('')
+  const [ledgerFilterMine, setLedgerFilterMine] = useState(false)
 
   const storeRewards = useMemo(
     () => rewards.filter((r) => r.status === 'active' && r.pointCost > 0),
     [rewards],
   )
+
+  const filteredLedger = ledgerFilterMine && user
+    ? ledger.filter((e) => e.userId === user.id)
+    : ledger
+
+  const runningBalances = useMemo(() => {
+    const totals = new Map<string, number>()
+    const result: number[] = []
+    const reversed = [...filteredLedger].reverse()
+    for (const entry of reversed) {
+      const prev = totals.get(entry.userId) ?? 0
+      totals.set(entry.userId, prev + entry.amount)
+    }
+    const cursor = new Map(totals)
+    for (const entry of filteredLedger) {
+      const current = cursor.get(entry.userId) ?? 0
+      result.push(current)
+      cursor.set(entry.userId, current - entry.amount)
+    }
+    return result
+  }, [filteredLedger])
 
   if (!activeRelationship || !user) {
     return (
@@ -59,7 +89,6 @@ export function PointsPage() {
   }
 
   const targetUserId = grantUserId || user.id
-  const memberBalancesHint = activeRelationship.members.map((m) => m.displayName).join(', ')
 
   return (
     <section className="mx-auto max-w-3xl space-y-8">
@@ -74,13 +103,34 @@ export function PointsPage() {
       </div>
 
       <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
-        <p className="text-xs uppercase tracking-wide text-stone-500">Your balance</p>
+        <p className="text-xs uppercase tracking-wide text-stone-500">Balances</p>
         {loading ? (
           <p className="mt-2 text-sm text-stone-500">Loading…</p>
         ) : (
-          <p className="mt-1 text-3xl font-semibold text-stone-50">{balance}</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {activeRelationship.members.map((m) => {
+              const mb = memberBalances.find((b) => b.userId === m.userId)
+              const isMe = m.userId === user.id
+              return (
+                <div
+                  key={m.userId}
+                  className={[
+                    'rounded-md border p-3',
+                    isMe ? 'border-rose-800 bg-rose-950/20' : 'border-stone-700 bg-stone-950/30',
+                  ].join(' ')}
+                >
+                  <p className="text-xs text-stone-400">
+                    {m.displayName}
+                    {isMe ? ' (you)' : ''}
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-stone-50">
+                    {mb?.balance ?? 0}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
         )}
-        <p className="mt-2 text-xs text-stone-500">Members: {memberBalancesHint}</p>
       </div>
 
       <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
@@ -189,6 +239,14 @@ export function PointsPage() {
                       ) : null}
                     </div>
                     <p className="mt-1 text-sm text-stone-400">{reward.description}</p>
+                    {isLockedText(reward.description) ? (
+                      <NavLink
+                        to="/settings"
+                        className="mt-1 inline-block text-xs text-rose-400 hover:text-rose-300"
+                      >
+                        Unlock in Settings
+                      </NavLink>
+                    ) : null}
                     <p className="mt-1 text-xs text-stone-500">{reward.pointCost} points</p>
                   </div>
                   <button
@@ -222,16 +280,28 @@ export function PointsPage() {
       </div>
 
       <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
-        <h3 className="text-sm font-medium text-stone-200">Ledger</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-medium text-stone-200">Ledger</h3>
+          <label className="text-xs text-stone-400">
+            <input
+              type="checkbox"
+              className="mr-1.5"
+              checked={ledgerFilterMine}
+              onChange={(e) => setLedgerFilterMine(e.target.checked)}
+            />
+            My entries only
+          </label>
+        </div>
         {loading ? (
           <p className="mt-3 text-sm text-stone-500">Loading…</p>
-        ) : ledger.length === 0 ? (
+        ) : filteredLedger.length === 0 ? (
           <p className="mt-3 text-sm text-stone-500">No ledger entries yet.</p>
         ) : (
           <ul className="mt-3 space-y-2 text-sm">
-            {ledger.slice(0, 50).map((entry) => {
+            {filteredLedger.slice(0, 50).map((entry, idx) => {
               const member = activeRelationship.members.find((m) => m.userId === entry.userId)
               const by = activeRelationship.members.find((m) => m.userId === entry.createdByUserId)
+              const running = runningBalances[idx] ?? 0
               return (
                 <li
                   key={entry.id}
@@ -241,14 +311,19 @@ export function PointsPage() {
                     <p className="text-stone-200">
                       {member?.displayName ?? 'Unknown'} · {sourceLabel(entry.source)}
                     </p>
-                    <p
-                      className={
-                        entry.amount >= 0 ? 'font-medium text-emerald-300' : 'font-medium text-rose-300'
-                      }
-                    >
-                      {entry.amount >= 0 ? '+' : ''}
-                      {entry.amount}
-                    </p>
+                    <div className="flex items-baseline gap-3">
+                      <p
+                        className={
+                          entry.amount >= 0
+                            ? 'font-medium text-emerald-300'
+                            : 'font-medium text-rose-300'
+                        }
+                      >
+                        {entry.amount >= 0 ? '+' : ''}
+                        {entry.amount}
+                      </p>
+                      <p className="text-xs text-stone-500">= {running}</p>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-stone-500">
                     by {by?.displayName ?? 'Unknown'} ·{' '}
