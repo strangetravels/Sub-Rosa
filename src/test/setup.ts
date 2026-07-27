@@ -10,11 +10,13 @@ beforeEach(() => {
   vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '')
   vi.stubEnv('VITE_FIREBASE_APP_ID', '')
   localStorage.clear()
+  sessionStorage.clear()
 })
 
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  sessionStorage.clear()
   // Reset in-memory IndexedDB between tests
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const idb = indexedDB as any

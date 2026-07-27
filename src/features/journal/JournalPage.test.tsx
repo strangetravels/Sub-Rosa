@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { RelationshipProvider } from '@/features/relationships/RelationshipProvider'
+import { SecurityProvider } from '@/features/security/SecurityProvider'
 import { JournalPage } from '@/features/journal/JournalPage'
 import { signUp } from '@/features/auth/authService'
 import { createRelationship } from '@/features/relationships/relationshipService'
@@ -12,9 +13,11 @@ function renderJournal() {
   return render(
     <MemoryRouter>
       <AuthProvider>
-        <RelationshipProvider>
-          <JournalPage />
-        </RelationshipProvider>
+        <SecurityProvider>
+          <RelationshipProvider>
+            <JournalPage />
+          </RelationshipProvider>
+        </SecurityProvider>
       </AuthProvider>
     </MemoryRouter>,
   )

@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { NotificationSettingsPanel } from '@/features/notifications/NotificationCenter'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
+import { SecuritySettingsPanel } from '@/features/security/SecuritySettingsPanel'
 
 export function PartnersSettingsPage() {
   const { user, signOut } = useAuth()
@@ -54,7 +55,7 @@ export function PartnersSettingsPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-stone-50">Settings</h2>
         <p className="mt-2 text-stone-400">
-          Account, partner management, encryption, notifications, and active relationship.
+          Account, security, themes, partner management, encryption, and notifications.
         </p>
       </div>
 
@@ -71,6 +72,18 @@ export function PartnersSettingsPage() {
           Sign out
         </button>
       </div>
+
+      {user ? (
+        <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
+          <h3 className="text-sm font-medium text-stone-200">Security & appearance</h3>
+          <p className="mt-1 text-sm text-stone-400">
+            Passcode lock, themes, discreet mode, and data export on this device.
+          </p>
+          <div className="mt-4">
+            <SecuritySettingsPanel />
+          </div>
+        </div>
+      ) : null}
 
       {activeRelationship && user ? (
         <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">

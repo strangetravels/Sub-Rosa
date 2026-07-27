@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
+import { useSecurity } from '@/features/security/SecurityProvider'
+import { PasscodeGate } from '@/features/security/PasscodeGate'
 import {
   assignJournalPrompt,
   computeJournalStreak,
@@ -28,8 +30,12 @@ const TAG_SUGGESTIONS = ['reflection', 'gratitude', 'scene', 'growth', 'connecti
 export function JournalPage() {
   const { user } = useAuth()
   const { activeRelationship } = useRelationship()
+  const { settings, confirmPasscode } = useSecurity()
   const relationshipId = activeRelationship?.id
   const { entries, prompts, loading, refresh } = useJournalData(relationshipId, user?.id)
+
+  const [privateUnlocked, setPrivateUnlocked] = useState(false)
+  const [showPrivateUnlock, setShowPrivateUnlock] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -601,6 +607,11 @@ export function JournalPage() {
               (m) => m.userId === entry.authorUserId,
             )
             const locked = isLockedText(entry.body)
+            const needsPrivateUnlock =
+              Boolean(settings?.journalPasscodeLock) &&
+              settings?.passcodeEnabled &&
+              entry.visibility === 'private' &&
+              !privateUnlocked
             return (
               <li
                 key={entry.id}
@@ -662,7 +673,18 @@ export function JournalPage() {
                       ) : null}
                     </div>
                 </div>
-                {locked ? (
+                {needsPrivateUnlock ? (
+                  <div className="mt-2">
+                    <p className="text-sm text-stone-400">Private entry locked.</p>
+                    <button
+                      type="button"
+                      className="mt-1 text-xs text-rose-400 hover:text-rose-300"
+                      onClick={() => setShowPrivateUnlock(true)}
+                    >
+                      Enter passcode to view
+                    </button>
+                  </div>
+                ) : locked ? (
                   <div className="mt-2">
                     <p className="text-sm text-stone-400">{entry.body}</p>
                     <NavLink
@@ -680,6 +702,22 @@ export function JournalPage() {
           })}
         </ul>
       )}
+
+      {showPrivateUnlock ? (
+        <PasscodeGate
+          appName="Journal"
+          title="Unlock private entries"
+          subtitle="Enter your app passcode to view private journal entries on this device."
+          onUnlock={async (pin) => {
+            const ok = await confirmPasscode(pin)
+            if (ok) {
+              setPrivateUnlocked(true)
+              setShowPrivateUnlock(false)
+            }
+            return ok
+          }}
+        />
+      ) : null}
 
       <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
         <div className="flex items-center justify-between">
