@@ -7,6 +7,7 @@ import { OnboardingPage } from '@/features/relationships/OnboardingPage'
 import { PartnersSettingsPage } from '@/features/relationships/PartnersSettingsPage'
 import { DashboardPage } from '@/features/relationships/DashboardPage'
 import { HabitsPage } from '@/features/habits/HabitsPage'
+import { PointsPage } from '@/features/points/PointsPage'
 import { RewardsPage } from '@/features/rewards/RewardsPage'
 import { RulesPage } from '@/features/rules/RulesPage'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -38,15 +39,7 @@ export function App() {
             <Route path="habits" element={<HabitsPage />} />
             <Route path="rules" element={<RulesPage />} />
             <Route path="rewards" element={<RewardsPage />} />
-            <Route
-              path="points"
-              element={
-                <PlaceholderPage
-                  title="Points"
-                  description="Ledger balance, history, and reward store."
-                />
-              }
-            />
+            <Route path="points" element={<PointsPage />} />
             <Route
               path="journal"
               element={

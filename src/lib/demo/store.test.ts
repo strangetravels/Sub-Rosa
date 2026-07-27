@@ -15,6 +15,7 @@ describe('demo store', () => {
       rewards: [],
       punishments: [],
       catalogHistory: [],
+      pointsLedger: [],
       rules: [],
       ruleCategories: [],
       ruleVersions: [],

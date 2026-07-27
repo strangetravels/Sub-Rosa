@@ -16,6 +16,10 @@ import {
   removeAutoPunishmentForHabitMiss,
   removeAutoRewardForHabitCompletion,
 } from '@/features/rewards/rewardService'
+import {
+  applyHabitCompletionPoints,
+  removeHabitCompletionPoints,
+} from '@/features/points/pointService'
 import { isDemoMode } from '@/lib/firebase/config'
 import { createId } from '@/lib/id'
 import { readDemoState, updateDemoState } from '@/lib/demo/store'
@@ -183,6 +187,7 @@ export type CreateHabitInput = {
   createdByUserId: string
   linkedRewardId?: string | null
   linkedPunishmentId?: string | null
+  pointValue?: number | null
 }
 
 export async function createHabit(input: CreateHabitInput): Promise<Habit> {
@@ -201,6 +206,10 @@ export async function createHabit(input: CreateHabitInput): Promise<Habit> {
     createdByUserId: input.createdByUserId,
     linkedRewardId: input.linkedRewardId ?? null,
     linkedPunishmentId: input.linkedPunishmentId ?? null,
+    pointValue:
+      input.pointValue === undefined || input.pointValue === null
+        ? null
+        : Math.max(0, Math.floor(input.pointValue)),
     status: 'active',
     createdAt: now,
     updatedAt: now,
@@ -229,6 +238,7 @@ export type UpdateHabitInput = {
   assignedToUserId?: string
   linkedRewardId?: string | null
   linkedPunishmentId?: string | null
+  pointValue?: number | null
   status?: HabitStatus
 }
 
@@ -257,6 +267,12 @@ export async function updateHabit(
             patch.linkedPunishmentId !== undefined
               ? patch.linkedPunishmentId
               : h.linkedPunishmentId,
+          pointValue:
+            patch.pointValue !== undefined
+              ? patch.pointValue === null
+                ? null
+                : Math.max(0, Math.floor(patch.pointValue))
+              : h.pointValue,
           status: patch.status ?? h.status,
           updatedAt: new Date().toISOString(),
         }
@@ -281,6 +297,7 @@ export async function updateHabit(
     assignedToUserId?: string
     linkedRewardId?: string | null
     linkedPunishmentId?: string | null
+    pointValue?: number | null
     status?: HabitStatus
   } = {
     updatedAt: new Date().toISOString(),
@@ -293,6 +310,10 @@ export async function updateHabit(
   if (patch.linkedRewardId !== undefined) payload.linkedRewardId = patch.linkedRewardId
   if (patch.linkedPunishmentId !== undefined) {
     payload.linkedPunishmentId = patch.linkedPunishmentId
+  }
+  if (patch.pointValue !== undefined) {
+    payload.pointValue =
+      patch.pointValue === null ? null : Math.max(0, Math.floor(patch.pointValue))
   }
   if (patch.status !== undefined) payload.status = patch.status
   await updateDoc(ref, payload)
@@ -363,8 +384,18 @@ export async function setHabitCompletedForDate(input: {
         completedOn,
         appliedByUserId: input.userId,
       })
+      await applyHabitCompletionPoints({
+        habit,
+        completedOn,
+        appliedByUserId: input.userId,
+      })
     } else if (!input.completed) {
       await removeAutoRewardForHabitCompletion({
+        relationshipId: input.relationshipId,
+        habitId: input.habitId,
+        occurrenceKey: completedOn,
+      })
+      await removeHabitCompletionPoints({
         relationshipId: input.relationshipId,
         habitId: input.habitId,
         occurrenceKey: completedOn,
@@ -401,11 +432,21 @@ export async function setHabitCompletedForDate(input: {
       completedOn,
       appliedByUserId: input.userId,
     })
+    await applyHabitCompletionPoints({
+      habit,
+      completedOn,
+      appliedByUserId: input.userId,
+    })
     return completion
   }
 
   await Promise.all(existingSnap.docs.map((d) => deleteDoc(d.ref)))
   await removeAutoRewardForHabitCompletion({
+    relationshipId: input.relationshipId,
+    habitId: input.habitId,
+    occurrenceKey: completedOn,
+  })
+  await removeHabitCompletionPoints({
     relationshipId: input.relationshipId,
     habitId: input.habitId,
     occurrenceKey: completedOn,

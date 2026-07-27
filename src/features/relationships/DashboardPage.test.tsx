@@ -8,6 +8,7 @@ import { DashboardPage } from '@/features/relationships/DashboardPage'
 import { signUp } from '@/features/auth/authService'
 import { createRelationship } from '@/features/relationships/relationshipService'
 import { createHabit } from '@/features/habits/habitService'
+import { grantPoints } from '@/features/points/pointService'
 
 function renderDashboard() {
   return render(
@@ -39,7 +40,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/Share invite code/)).toBeInTheDocument()
   })
 
-  it('lists today’s habits and toggles completion', async () => {
+  it('lists today habits and toggles completion', async () => {
     const user = userEvent.setup()
     const profile = await signUp('dashhabits@example.com', 'secret123', 'Dash Habits')
     const { relationship } = await createRelationship({
@@ -67,7 +68,30 @@ describe('DashboardPage', () => {
     })
   })
 
-  it('filters today’s list to habits assigned to me', async () => {
+  it('displays the points balance widget', async () => {
+    const profile = await signUp('dashpoints@example.com', 'secret123', 'Dash Pts')
+    const { relationship } = await createRelationship({
+      user: profile,
+      name: 'Points Dynamic',
+      role: 'dominant',
+      passphrase: 'encrypt-me-please',
+    })
+    await grantPoints({
+      relationshipId: relationship.id,
+      userId: profile.id,
+      amount: 42,
+      createdByUserId: profile.id,
+      note: 'bonus',
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByText('Your points')).toBeInTheDocument()
+    expect(await screen.findByText('42')).toBeInTheDocument()
+    expect(screen.getByText('Open ledger')).toBeInTheDocument()
+  })
+
+  it('filters today list to habits assigned to me', async () => {
     const user = userEvent.setup()
     const profile = await signUp('filter-a@example.com', 'secret123', 'Filter A')
     const { relationship } = await createRelationship({

@@ -18,6 +18,7 @@ import { ruleNeedsAcknowledgmentFrom } from '@/features/rules/ruleLogic'
 import { useRulesData } from '@/features/rules/useRulesData'
 import { hasHabitMissPunishment } from '@/features/rewards/rewardService'
 import { useRewardsData } from '@/features/rewards/useRewardsData'
+import { usePointsData } from '@/features/points/usePointsData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 
 export function DashboardPage() {
@@ -32,6 +33,7 @@ export function DashboardPage() {
     refresh: refreshRewards,
     loading: rewardsLoading,
   } = useRewardsData(activeRelationship?.id, { includeArchived: false })
+  const { balance, refresh: refreshPoints } = usePointsData(activeRelationship?.id, user?.id)
   const { rules, acknowledgments, loading: rulesLoading } = useRulesData(activeRelationship?.id)
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
@@ -60,6 +62,20 @@ export function DashboardPage() {
         <h2 className="text-2xl font-semibold tracking-tight text-stone-50">Dashboard</h2>
         <p className="mt-2 text-stone-400">Today’s habits for the active relationship.</p>
       </div>
+
+      {activeRelationship && user ? (
+        <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Your points</p>
+              <p className="mt-1 text-2xl font-semibold text-stone-50">{balance}</p>
+            </div>
+            <NavLink to="/points" className="text-xs text-rose-400 hover:text-rose-300">
+              Open ledger
+            </NavLink>
+          </div>
+        </div>
+      ) : null}
 
       {activeRelationship ? (
         <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5 text-sm">
@@ -209,7 +225,9 @@ export function DashboardPage() {
                           habitId: habit.id,
                           userId: user.id,
                           completed: !done,
-                        }).then(() => Promise.all([refresh(), refreshRewards()]))
+                        }).then(() =>
+                          Promise.all([refresh(), refreshRewards(), refreshPoints()]),
+                        )
                       }}
                     >
                       ✓

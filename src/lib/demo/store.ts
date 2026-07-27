@@ -3,6 +3,7 @@ import type {
   Habit,
   HabitCategory,
   HabitCompletion,
+  PointsLedgerEntry,
   Punishment,
   Reward,
   RewardPunishmentCategory,
@@ -33,6 +34,7 @@ export type DemoState = {
   rewards: Reward[]
   punishments: Punishment[]
   catalogHistory: CatalogHistoryEntry[]
+  pointsLedger: PointsLedgerEntry[]
   rules: Rule[]
   ruleCategories: RuleCategory[]
   ruleVersions: RuleVersion[]
@@ -52,6 +54,7 @@ function emptyState(): DemoState {
     rewards: [],
     punishments: [],
     catalogHistory: [],
+    pointsLedger: [],
     rules: [],
     ruleCategories: [],
     ruleVersions: [],

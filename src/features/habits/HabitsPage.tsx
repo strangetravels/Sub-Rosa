@@ -57,6 +57,7 @@ function emptyForm(assignedToUserId: string) {
     assignedToUserId,
     linkedRewardId: '',
     linkedPunishmentId: '',
+    pointValue: '',
   }
 }
 
@@ -129,6 +130,10 @@ export function HabitsPage() {
       assignedToUserId: habit.assignedToUserId,
       linkedRewardId: habit.linkedRewardId ?? '',
       linkedPunishmentId: habit.linkedPunishmentId ?? '',
+      pointValue:
+        habit.pointValue === null || habit.pointValue === undefined
+          ? ''
+          : String(habit.pointValue),
     })
     setError(null)
   }
@@ -139,6 +144,8 @@ export function HabitsPage() {
     setError(null)
     try {
       const frequency = frequencyFromForm(form)
+      const pointValue =
+        form.pointValue.trim() === '' ? null : Math.max(0, Math.floor(Number(form.pointValue) || 0))
       if (editingId) {
         await updateHabit(relationshipId, editingId, {
           title: form.title,
@@ -148,6 +155,7 @@ export function HabitsPage() {
           assignedToUserId: form.assignedToUserId,
           linkedRewardId: form.linkedRewardId || null,
           linkedPunishmentId: form.linkedPunishmentId || null,
+          pointValue,
         })
       } else {
         await createHabit({
@@ -160,6 +168,7 @@ export function HabitsPage() {
           createdByUserId: user.id,
           linkedRewardId: form.linkedRewardId || null,
           linkedPunishmentId: form.linkedPunishmentId || null,
+          pointValue,
         })
       }
       startCreate()
@@ -385,6 +394,18 @@ export function HabitsPage() {
           </select>
         </label>
 
+        <label className="mt-3 block text-sm text-stone-300">
+          Points on completion
+          <input
+            type="number"
+            min={0}
+            placeholder="10 (default)"
+            className="mt-1 w-full rounded-md border border-stone-600 bg-stone-900 px-3 py-2 text-stone-50 outline-none focus:border-rose-500"
+            value={form.pointValue}
+            onChange={(e) => setForm((f) => ({ ...f, pointValue: e.target.value }))}
+          />
+        </label>
+
         <fieldset className="mt-3">
           <legend className="text-sm text-stone-300">Frequency</legend>
           <div className="mt-2 flex flex-wrap gap-3 text-sm text-stone-300">
@@ -545,6 +566,7 @@ export function HabitsPage() {
                         {assignee?.displayName ?? 'Unassigned'}
                         {' · '}
                         streak {streak}
+                        {habit.pointValue ? ` · ${habit.pointValue} pts` : ''}
                         {habit.linkedRewardId ? ' · auto reward linked' : ''}
                         {habit.linkedPunishmentId ? ' · punishment linked' : ''}
                       </p>

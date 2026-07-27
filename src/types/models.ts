@@ -82,10 +82,10 @@ export type Habit = {
   frequency: HabitFrequency
   assignedToUserId: string
   createdByUserId: string
-  /** Reserved for rewards feature branch. */
   linkedRewardId?: string | null
-  /** Reserved for punishments feature branch. */
   linkedPunishmentId?: string | null
+  /** Points granted on completion (defaults to 10 when unset). */
+  pointValue?: number | null
   status: HabitStatus
   createdAt: string
   updatedAt: string
@@ -195,6 +195,7 @@ export type ApplicationSource =
   | 'habit_completion'
   | 'habit_punishment'
   | 'rule_violation'
+  | 'reward_purchase'
 
 export type CatalogHistoryEntry = {
   id: string
@@ -211,4 +212,26 @@ export type CatalogHistoryEntry = {
   habitId?: string
   ruleId?: string
   occurrenceKey?: string
+}
+
+export type PointsLedgerSource =
+  | 'habit_completion'
+  | 'manual_grant'
+  | 'manual_adjust'
+  | 'reward_purchase'
+
+export type PointsLedgerEntry = {
+  id: string
+  relationshipId: string
+  userId: string
+  amount: number
+  source: PointsLedgerSource
+  note: string
+  noteCiphertext?: EncryptedTextRecord
+  createdAt: string
+  createdByUserId: string
+  habitId?: string
+  rewardId?: string
+  occurrenceKey?: string
+  catalogHistoryId?: string
 }
