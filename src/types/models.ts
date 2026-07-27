@@ -246,6 +246,27 @@ export type JournalPrompt = {
   answeredEntryId?: string | null
 }
 
+export type ChatMessage = {
+  id: string
+  relationshipId: string
+  senderUserId: string
+  body: string
+  bodyCiphertext?: EncryptedTextRecord
+  /** Optional attached shared journal entry. */
+  journalEntryId?: string | null
+  journalEntryTitle?: string | null
+  createdAt: string
+  /** Map of userId → ISO timestamp when they last read this message. */
+  readBy: Record<string, string>
+}
+
+export type ChatTypingPresence = {
+  relationshipId: string
+  userId: string
+  displayName: string
+  updatedAt: string
+}
+
 export type PointsLedgerSource =
   | 'habit_completion'
   | 'manual_grant'

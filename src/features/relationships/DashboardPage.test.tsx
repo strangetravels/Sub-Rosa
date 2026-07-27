@@ -10,6 +10,7 @@ import { createRelationship } from '@/features/relationships/relationshipService
 import { createHabit } from '@/features/habits/habitService'
 import { grantPoints } from '@/features/points/pointService'
 import { createJournalEntry } from '@/features/journal/journalService'
+import { sendChatMessage } from '@/features/chat/chatService'
 
 function renderDashboard() {
   return render(
@@ -113,6 +114,28 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Journal streak')).toBeInTheDocument()
     expect(await screen.findByText('Evening note')).toBeInTheDocument()
     expect(screen.getByText('Open journal')).toBeInTheDocument()
+  })
+
+  it('displays the chat unread widget with latest preview', async () => {
+    const profile = await signUp('dashchat@example.com', 'secret123', 'Dash Chat')
+    const { relationship } = await createRelationship({
+      user: profile,
+      name: 'Chat Dash Dynamic',
+      role: 'dominant',
+      passphrase: 'encrypt-me-please',
+    })
+    await sendChatMessage({
+      relationshipId: relationship.id,
+      senderUserId: profile.id,
+      body: 'Latest from me',
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByText('Chat')).toBeInTheDocument()
+    expect(await screen.findByText('Latest from me')).toBeInTheDocument()
+    expect(screen.getByText(/Latest:/)).toBeInTheDocument()
+    expect(screen.getByText('Open chat')).toBeInTheDocument()
   })
 
   it('filters today list to habits assigned to me', async () => {

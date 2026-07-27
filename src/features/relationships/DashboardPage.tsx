@@ -23,6 +23,11 @@ import {
   computeJournalStreak,
 } from '@/features/journal/journalService'
 import { useJournalData } from '@/features/journal/useJournalData'
+import {
+  countUnreadMessages,
+  previewChatBody,
+} from '@/features/chat/chatService'
+import { useChatData } from '@/features/chat/useChatData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 
 export function DashboardPage() {
@@ -43,6 +48,11 @@ export function DashboardPage() {
     prompts: journalPrompts,
     loading: journalLoading,
   } = useJournalData(activeRelationship?.id, user?.id)
+  const { messages: chatMessages, loading: chatLoading } = useChatData(
+    activeRelationship?.id,
+    user?.id,
+    { markRead: false },
+  )
   const { rules, acknowledgments, loading: rulesLoading } = useRulesData(activeRelationship?.id)
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
@@ -56,6 +66,8 @@ export function DashboardPage() {
         (p) => p.assignedToUserId === user.id && p.status === 'open',
       )
     : []
+  const chatUnread = user ? countUnreadMessages(chatMessages, user.id) : 0
+  const lastChatMessage = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1] : null
   const todaysHabits = habits.filter((h) => {
     if (h.status !== 'active' || !isHabitDueOn(h, completions)) return false
     if (assignedToMeOnly && user) return h.assignedToUserId === user.id
@@ -134,6 +146,31 @@ export function DashboardPage() {
             </ul>
           ) : (
             <p className="mt-2 text-xs text-stone-500">No shared entries yet.</p>
+          )}
+        </div>
+      ) : null}
+
+      {activeRelationship && user ? (
+        <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Chat</p>
+              <p className="mt-1 text-2xl font-semibold text-stone-50">
+                {chatLoading ? '…' : chatUnread}
+              </p>
+              <p className="mt-0.5 text-xs text-stone-500">unread</p>
+            </div>
+            <NavLink to="/chat" className="text-xs text-rose-400 hover:text-rose-300">
+              Open chat
+            </NavLink>
+          </div>
+          {lastChatMessage ? (
+            <p className="mt-3 border-t border-stone-800 pt-3 text-sm text-stone-300">
+              <span className="text-stone-500">Latest: </span>
+              {previewChatBody(lastChatMessage)}
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-stone-500">No messages yet.</p>
           )}
         </div>
       ) : null}
