@@ -7,6 +7,7 @@ import { OnboardingPage } from '@/features/relationships/OnboardingPage'
 import { PartnersSettingsPage } from '@/features/relationships/PartnersSettingsPage'
 import { DashboardPage } from '@/features/relationships/DashboardPage'
 import { HabitsPage } from '@/features/habits/HabitsPage'
+import { RulesPage } from '@/features/rules/RulesPage'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 function AuthEntry() {
@@ -34,15 +35,7 @@ export function App() {
           <Route element={<AppShell />}>
             <Route index element={<DashboardPage />} />
             <Route path="habits" element={<HabitsPage />} />
-            <Route
-              path="rules"
-              element={
-                <PlaceholderPage
-                  title="Rules"
-                  description="Versioned rule library with optional acknowledgment."
-                />
-              }
-            />
+            <Route path="rules" element={<RulesPage />} />
             <Route
               path="rewards"
               element={

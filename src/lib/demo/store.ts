@@ -3,6 +3,10 @@ import type {
   HabitCategory,
   HabitCompletion,
   Relationship,
+  Rule,
+  RuleAcknowledgment,
+  RuleCategory,
+  RuleVersion,
   UserProfile,
 } from '@/types/models'
 
@@ -21,6 +25,10 @@ export type DemoState = {
   habits: Habit[]
   habitCategories: HabitCategory[]
   habitCompletions: HabitCompletion[]
+  rules: Rule[]
+  ruleCategories: RuleCategory[]
+  ruleVersions: RuleVersion[]
+  ruleAcknowledgments: RuleAcknowledgment[]
 }
 
 function emptyState(): DemoState {
@@ -32,6 +40,10 @@ function emptyState(): DemoState {
     habits: [],
     habitCategories: [],
     habitCompletions: [],
+    rules: [],
+    ruleCategories: [],
+    ruleVersions: [],
+    ruleAcknowledgments: [],
   }
 }
 

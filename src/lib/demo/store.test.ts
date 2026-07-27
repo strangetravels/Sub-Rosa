@@ -11,6 +11,10 @@ describe('demo store', () => {
       habits: [],
       habitCategories: [],
       habitCompletions: [],
+      rules: [],
+      ruleCategories: [],
+      ruleVersions: [],
+      ruleAcknowledgments: [],
     })
   })
 

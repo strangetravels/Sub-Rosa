@@ -95,3 +95,52 @@ export type HabitCompletion = {
   completedOn: string
   createdAt: string
 }
+
+export type RuleStatus = 'active' | 'archived'
+
+export type RuleCategory = {
+  id: string
+  relationshipId: string
+  label: string
+  color: string
+}
+
+export type Rule = {
+  id: string
+  relationshipId: string
+  title: string
+  body: string
+  categoryId: string | null
+  requiresAcknowledgment: boolean
+  /** Reserved for punishments feature branch. */
+  linkedPunishmentId?: string | null
+  currentVersion: number
+  status: RuleStatus
+  createdByUserId: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type RuleVersion = {
+  id: string
+  ruleId: string
+  relationshipId: string
+  version: number
+  title: string
+  body: string
+  categoryId: string | null
+  requiresAcknowledgment: boolean
+  linkedPunishmentId?: string | null
+  editedByUserId: string
+  editedAt: string
+  changeNote?: string
+}
+
+export type RuleAcknowledgment = {
+  id: string
+  ruleId: string
+  relationshipId: string
+  userId: string
+  version: number
+  acknowledgedAt: string
+}
