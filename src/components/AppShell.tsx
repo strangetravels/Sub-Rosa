@@ -4,6 +4,8 @@ import { countUnreadMessages } from '@/features/chat/chatService'
 import { useChatData } from '@/features/chat/useChatData'
 import { NotificationBell } from '@/features/notifications/NotificationCenter'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
+import { useSecurity } from '@/features/security/SecurityProvider'
+import { APP_NAME, DISCREET_APP_NAME } from '@/features/security/securitySettings'
 
 const navItems = [
   { to: '/', label: 'Dashboard', end: true },
@@ -20,15 +22,17 @@ const navItems = [
 export function AppShell() {
   const { user } = useAuth()
   const { relationships, activeRelationship, setActiveRelationship } = useRelationship()
+  const { settings } = useSecurity()
   const { messages } = useChatData(activeRelationship?.id, user?.id, { markRead: false })
   const unread = user ? countUnreadMessages(messages, user.id) : 0
+  const brandName = settings?.discreetMode ? DISCREET_APP_NAME : APP_NAME
 
   return (
     <div className="flex min-h-full flex-col md:flex-row">
       <aside className="border-b border-stone-700 bg-stone-900 md:w-56 md:border-b-0 md:border-r">
         <div className="px-4 py-5">
           <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Workspace</p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight text-stone-50">Sub Rosa</h1>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-stone-50">{brandName}</h1>
           {user ? (
             <p className="mt-1 truncate text-sm text-stone-400">{user.displayName}</p>
           ) : null}

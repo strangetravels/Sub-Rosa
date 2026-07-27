@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { AppShell } from '@/components/AppShell'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import { RelationshipProvider } from '@/features/relationships/RelationshipProvider'
+import { SecurityProvider } from '@/features/security/SecurityProvider'
 import { signUp } from '@/features/auth/authService'
 import {
   createRelationship,
@@ -15,13 +16,15 @@ function renderShell() {
   return render(
     <MemoryRouter initialEntries={['/']}>
       <AuthProvider>
-        <RelationshipProvider>
-          <Routes>
-            <Route element={<AppShell />}>
-              <Route index element={<div>Home outlet</div>} />
-            </Route>
-          </Routes>
-        </RelationshipProvider>
+        <SecurityProvider>
+          <RelationshipProvider>
+            <Routes>
+              <Route element={<AppShell />}>
+                <Route index element={<div>Home outlet</div>} />
+              </Route>
+            </Routes>
+          </RelationshipProvider>
+        </SecurityProvider>
       </AuthProvider>
     </MemoryRouter>,
   )
