@@ -19,6 +19,10 @@ import { useRulesData } from '@/features/rules/useRulesData'
 import { hasHabitMissPunishment } from '@/features/rewards/rewardService'
 import { useRewardsData } from '@/features/rewards/useRewardsData'
 import { usePointsData } from '@/features/points/usePointsData'
+import {
+  computeJournalStreak,
+} from '@/features/journal/journalService'
+import { useJournalData } from '@/features/journal/useJournalData'
 import { formatLocalDateKey, toLocalDateKey } from '@/lib/date'
 
 export function DashboardPage() {
@@ -34,10 +38,24 @@ export function DashboardPage() {
     loading: rewardsLoading,
   } = useRewardsData(activeRelationship?.id, { includeArchived: false })
   const { balance, refresh: refreshPoints } = usePointsData(activeRelationship?.id, user?.id)
+  const {
+    entries: journalEntries,
+    prompts: journalPrompts,
+    loading: journalLoading,
+  } = useJournalData(activeRelationship?.id, user?.id)
   const { rules, acknowledgments, loading: rulesLoading } = useRulesData(activeRelationship?.id)
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
   const todayKey = toLocalDateKey()
+  const journalStreak = user ? computeJournalStreak(journalEntries, user.id) : 0
+  const recentSharedJournal = journalEntries
+    .filter((e) => e.visibility === 'shared')
+    .slice(0, 3)
+  const pendingAssignedPrompts = user
+    ? journalPrompts.filter(
+        (p) => p.assignedToUserId === user.id && p.status === 'open',
+      )
+    : []
   const todaysHabits = habits.filter((h) => {
     if (h.status !== 'active' || !isHabitDueOn(h, completions)) return false
     if (assignedToMeOnly && user) return h.assignedToUserId === user.id
@@ -74,6 +92,49 @@ export function DashboardPage() {
               Open ledger
             </NavLink>
           </div>
+        </div>
+      ) : null}
+
+      {activeRelationship && user ? (
+        <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-stone-500">Journal streak</p>
+              <p className="mt-1 text-2xl font-semibold text-stone-50">
+                {journalLoading ? '…' : journalStreak}
+              </p>
+            </div>
+            <NavLink to="/journal" className="text-xs text-rose-400 hover:text-rose-300">
+              Open journal
+            </NavLink>
+          </div>
+          {pendingAssignedPrompts.length > 0 ? (
+            <p className="mt-2 text-xs text-amber-300">
+              {pendingAssignedPrompts.length} assigned prompt
+              {pendingAssignedPrompts.length === 1 ? '' : 's'} waiting
+            </p>
+          ) : null}
+          {recentSharedJournal.length > 0 ? (
+            <ul className="mt-3 space-y-1.5 border-t border-stone-800 pt-3 text-sm">
+              {recentSharedJournal.map((entry) => {
+                const author = activeRelationship.members.find(
+                  (m) => m.userId === entry.authorUserId,
+                )
+                return (
+                  <li key={entry.id} className="text-stone-300">
+                    <span className="text-stone-100">{entry.title}</span>
+                    <span className="text-xs text-stone-500">
+                      {' '}
+                      · {author?.displayName ?? 'Unknown'} ·{' '}
+                      {formatLocalDateKey(entry.createdAt.slice(0, 10))}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-stone-500">No shared entries yet.</p>
+          )}
         </div>
       ) : null}
 

@@ -9,6 +9,7 @@ import { signUp } from '@/features/auth/authService'
 import { createRelationship } from '@/features/relationships/relationshipService'
 import { createHabit } from '@/features/habits/habitService'
 import { grantPoints } from '@/features/points/pointService'
+import { createJournalEntry } from '@/features/journal/journalService'
 
 function renderDashboard() {
   return render(
@@ -89,6 +90,29 @@ describe('DashboardPage', () => {
     expect(await screen.findByText('Your points')).toBeInTheDocument()
     expect(await screen.findByText('42')).toBeInTheDocument()
     expect(screen.getByText('Open ledger')).toBeInTheDocument()
+  })
+
+  it('displays the journal streak widget with shared entries', async () => {
+    const profile = await signUp('dashjournal@example.com', 'secret123', 'Dash Jrn')
+    const { relationship } = await createRelationship({
+      user: profile,
+      name: 'Journal Dynamic',
+      role: 'dominant',
+      passphrase: 'encrypt-me-please',
+    })
+    await createJournalEntry({
+      relationshipId: relationship.id,
+      authorUserId: profile.id,
+      visibility: 'shared',
+      title: 'Evening note',
+      body: 'Shared with partner.',
+    })
+
+    renderDashboard()
+
+    expect(await screen.findByText('Journal streak')).toBeInTheDocument()
+    expect(await screen.findByText('Evening note')).toBeInTheDocument()
+    expect(screen.getByText('Open journal')).toBeInTheDocument()
   })
 
   it('filters today list to habits assigned to me', async () => {

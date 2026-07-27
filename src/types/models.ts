@@ -214,11 +214,44 @@ export type CatalogHistoryEntry = {
   occurrenceKey?: string
 }
 
+export type JournalEntryVisibility = 'private' | 'shared'
+
+export type JournalEntry = {
+  id: string
+  relationshipId: string
+  authorUserId: string
+  visibility: JournalEntryVisibility
+  title: string
+  body: string
+  bodyCiphertext?: EncryptedTextRecord
+  tags: string[]
+  promptId?: string | null
+  assignedByUserId?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type JournalPromptStatus = 'open' | 'answered'
+
+export type JournalPrompt = {
+  id: string
+  relationshipId: string
+  text: string
+  category: string
+  createdByUserId: string
+  createdAt: string
+  /** When set, this prompt is assigned to a specific member to answer. */
+  assignedToUserId?: string | null
+  status?: JournalPromptStatus
+  answeredEntryId?: string | null
+}
+
 export type PointsLedgerSource =
   | 'habit_completion'
   | 'manual_grant'
   | 'manual_adjust'
   | 'reward_purchase'
+  | 'journal_entry'
 
 export type PointsLedgerEntry = {
   id: string

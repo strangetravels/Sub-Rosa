@@ -10,6 +10,7 @@ import { HabitsPage } from '@/features/habits/HabitsPage'
 import { PointsPage } from '@/features/points/PointsPage'
 import { RewardsPage } from '@/features/rewards/RewardsPage'
 import { RulesPage } from '@/features/rules/RulesPage'
+import { JournalPage } from '@/features/journal/JournalPage'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 function AuthEntry() {
@@ -40,15 +41,7 @@ export function App() {
             <Route path="rules" element={<RulesPage />} />
             <Route path="rewards" element={<RewardsPage />} />
             <Route path="points" element={<PointsPage />} />
-            <Route
-              path="journal"
-              element={
-                <PlaceholderPage
-                  title="Journal"
-                  description="Private and shared encrypted entries, prompts, and streaks."
-                />
-              }
-            />
+            <Route path="journal" element={<JournalPage />} />
             <Route
               path="chat"
               element={
