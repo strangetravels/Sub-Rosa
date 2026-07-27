@@ -5,11 +5,15 @@ import { useRelationship } from '@/features/relationships/RelationshipProvider'
 import {
   applyPunishmentManually,
   applyRewardManually,
+  archivePunishment,
+  archiveReward,
   createPunishment,
   createReward,
   createRewardPunishmentCategory,
   DECRYPT_FAILED_TEXT,
   LOCKED_TEXT,
+  restorePunishment,
+  restoreReward,
   updatePunishment,
   updateReward,
 } from '@/features/rewards/rewardService'
@@ -49,12 +53,16 @@ export function RewardsPage() {
   const [categoryColor, setCategoryColor] = useState<string>(CATEGORY_COLORS[0])
   const [applyTargetUserId, setApplyTargetUserId] = useState<string>('')
   const [applyNote, setApplyNote] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const activeRewards = useMemo(() => rewards.filter((r) => r.status === 'active'), [rewards])
-  const activePunishments = useMemo(
-    () => punishments.filter((p) => p.status === 'active'),
-    [punishments],
+  const visibleRewards = useMemo(
+    () => rewards.filter((r) => showArchived || r.status === 'active'),
+    [rewards, showArchived],
+  )
+  const visiblePunishments = useMemo(
+    () => punishments.filter((p) => showArchived || p.status === 'active'),
+    [punishments, showArchived],
   )
 
   if (!activeRelationship || !user) {
@@ -307,7 +315,18 @@ export function RewardsPage() {
       </div>
 
       <div className="rounded-lg border border-stone-700 bg-stone-900/50 p-5">
-        <h3 className="text-sm font-medium text-stone-200">Manual apply</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-medium text-stone-200">Manual apply</h3>
+          <label className="text-xs text-stone-400">
+            <input
+              type="checkbox"
+              className="mr-1.5"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
+            Show archived
+          </label>
+        </div>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           <label className="block text-sm text-stone-300">
             Target
@@ -336,67 +355,111 @@ export function RewardsPage() {
           <div>
             <p className="text-xs uppercase tracking-wide text-stone-500">Rewards</p>
             <ul className="mt-2 space-y-2">
-              {activeRewards.map((reward) => (
-                <CatalogCard
-                  key={reward.id}
-                  title={reward.title}
-                  description={reward.description}
-                  footer={`cost ${reward.pointCost}`}
-                  locked={isLockedText(reward.description)}
-                  onEdit={() => {
-                    setRewardEditingId(reward.id)
-                    setRewardForm({
-                      title: reward.title,
-                      description: isLockedText(reward.description) ? '' : reward.description,
-                      categoryId: reward.categoryId ?? '',
-                      pointCost: reward.pointCost,
-                    })
-                  }}
-                  onApply={() =>
-                    void applyRewardManually({
-                      relationshipId: activeRelationship.id,
-                      rewardId: reward.id,
-                      targetUserId,
-                      appliedByUserId: user.id,
-                      note: applyNote,
-                    }).then(refresh)
-                  }
-                />
-              ))}
+              {visibleRewards.length === 0 ? (
+                <li className="text-sm text-stone-500">No rewards yet.</li>
+              ) : (
+                visibleRewards.map((reward) => (
+                  <CatalogCard
+                    key={reward.id}
+                    title={reward.title}
+                    description={reward.description}
+                    footer={`cost ${reward.pointCost}`}
+                    status={reward.status}
+                    locked={isLockedText(reward.description)}
+                    onEdit={() => {
+                      setRewardEditingId(reward.id)
+                      setRewardForm({
+                        title: reward.title,
+                        description: isLockedText(reward.description) ? '' : reward.description,
+                        categoryId: reward.categoryId ?? '',
+                        pointCost: reward.pointCost,
+                      })
+                    }}
+                    onApply={
+                      reward.status === 'active'
+                        ? () =>
+                            void applyRewardManually({
+                              relationshipId: activeRelationship.id,
+                              rewardId: reward.id,
+                              targetUserId,
+                              appliedByUserId: user.id,
+                              note: applyNote,
+                            }).then(refresh)
+                        : undefined
+                    }
+                    onArchive={
+                      reward.status === 'active'
+                        ? () =>
+                            void archiveReward(activeRelationship.id, reward.id).then(refresh)
+                        : undefined
+                    }
+                    onRestore={
+                      reward.status === 'archived'
+                        ? () =>
+                            void restoreReward(activeRelationship.id, reward.id).then(refresh)
+                        : undefined
+                    }
+                  />
+                ))
+              )}
             </ul>
           </div>
           <div>
             <p className="text-xs uppercase tracking-wide text-stone-500">Punishments</p>
             <ul className="mt-2 space-y-2">
-              {activePunishments.map((punishment) => (
-                <CatalogCard
-                  key={punishment.id}
-                  title={punishment.title}
-                  description={punishment.description}
-                  footer={`severity ${punishment.severity}`}
-                  locked={isLockedText(punishment.description)}
-                  onEdit={() => {
-                    setPunishmentEditingId(punishment.id)
-                    setPunishmentForm({
-                      title: punishment.title,
-                      description: isLockedText(punishment.description)
-                        ? ''
-                        : punishment.description,
-                      categoryId: punishment.categoryId ?? '',
-                      severity: punishment.severity,
-                    })
-                  }}
-                  onApply={() =>
-                    void applyPunishmentManually({
-                      relationshipId: activeRelationship.id,
-                      punishmentId: punishment.id,
-                      targetUserId,
-                      appliedByUserId: user.id,
-                      note: applyNote,
-                    }).then(refresh)
-                  }
-                />
-              ))}
+              {visiblePunishments.length === 0 ? (
+                <li className="text-sm text-stone-500">No punishments yet.</li>
+              ) : (
+                visiblePunishments.map((punishment) => (
+                  <CatalogCard
+                    key={punishment.id}
+                    title={punishment.title}
+                    description={punishment.description}
+                    footer={`severity ${punishment.severity}`}
+                    status={punishment.status}
+                    locked={isLockedText(punishment.description)}
+                    onEdit={() => {
+                      setPunishmentEditingId(punishment.id)
+                      setPunishmentForm({
+                        title: punishment.title,
+                        description: isLockedText(punishment.description)
+                          ? ''
+                          : punishment.description,
+                        categoryId: punishment.categoryId ?? '',
+                        severity: punishment.severity,
+                      })
+                    }}
+                    onApply={
+                      punishment.status === 'active'
+                        ? () =>
+                            void applyPunishmentManually({
+                              relationshipId: activeRelationship.id,
+                              punishmentId: punishment.id,
+                              targetUserId,
+                              appliedByUserId: user.id,
+                              note: applyNote,
+                            }).then(refresh)
+                        : undefined
+                    }
+                    onArchive={
+                      punishment.status === 'active'
+                        ? () =>
+                            void archivePunishment(activeRelationship.id, punishment.id).then(
+                              refresh,
+                            )
+                        : undefined
+                    }
+                    onRestore={
+                      punishment.status === 'archived'
+                        ? () =>
+                            void restorePunishment(activeRelationship.id, punishment.id).then(
+                              refresh,
+                            )
+                        : undefined
+                    }
+                  />
+                ))
+              )}
             </ul>
           </div>
         </div>
@@ -442,13 +505,21 @@ function CatalogCard(props: {
   title: string
   description: string
   footer: string
+  status: 'active' | 'archived'
   locked: boolean
   onEdit: () => void
-  onApply: () => void
+  onApply?: () => void
+  onArchive?: () => void
+  onRestore?: () => void
 }) {
   return (
     <li className="rounded-md border border-stone-800 bg-stone-950/40 p-3">
-      <p className="font-medium text-stone-100">{props.title}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-medium text-stone-100">{props.title}</p>
+        {props.status === 'archived' ? (
+          <span className="text-xs text-stone-500">Archived</span>
+        ) : null}
+      </div>
       <p className="mt-1 text-sm text-stone-400">{props.description}</p>
       {props.locked ? (
         <NavLink to="/settings" className="mt-1 inline-block text-xs text-rose-400 hover:text-rose-300">
@@ -456,13 +527,33 @@ function CatalogCard(props: {
         </NavLink>
       ) : null}
       <p className="mt-2 text-xs text-stone-500">{props.footer}</p>
-      <div className="mt-3 flex gap-3 text-xs">
+      <div className="mt-3 flex flex-wrap gap-3 text-xs">
         <button type="button" className="text-stone-400 hover:text-stone-200" onClick={props.onEdit}>
           Edit
         </button>
-        <button type="button" className="text-rose-400 hover:text-rose-300" onClick={props.onApply}>
-          Apply
-        </button>
+        {props.onApply ? (
+          <button type="button" className="text-rose-400 hover:text-rose-300" onClick={props.onApply}>
+            Apply
+          </button>
+        ) : null}
+        {props.onArchive ? (
+          <button
+            type="button"
+            className="text-stone-400 hover:text-rose-300"
+            onClick={props.onArchive}
+          >
+            Archive
+          </button>
+        ) : null}
+        {props.onRestore ? (
+          <button
+            type="button"
+            className="text-stone-400 hover:text-stone-200"
+            onClick={props.onRestore}
+          >
+            Restore
+          </button>
+        ) : null}
       </div>
     </li>
   )

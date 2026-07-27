@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useRelationship } from '@/features/relationships/RelationshipProvider'
-import { setHabitCompletedForDate } from '@/features/habits/habitService'
+import {
+  markHabitMissedForDate,
+  setHabitCompletedForDate,
+} from '@/features/habits/habitService'
 import {
   completionsOnDate,
   computeStreak,
@@ -13,6 +16,8 @@ import {
 import { useHabitsData } from '@/features/habits/useHabitsData'
 import { ruleNeedsAcknowledgmentFrom } from '@/features/rules/ruleLogic'
 import { useRulesData } from '@/features/rules/useRulesData'
+import { hasHabitMissPunishment } from '@/features/rewards/rewardService'
+import { useRewardsData } from '@/features/rewards/useRewardsData'
 import { toLocalDateKey } from '@/lib/date'
 
 export function DashboardPage() {
@@ -22,6 +27,9 @@ export function DashboardPage() {
   const { habits, categories, completions, loading, refresh } = useHabitsData(
     activeRelationship?.id,
   )
+  const { history, refresh: refreshRewards } = useRewardsData(activeRelationship?.id, {
+    includeArchived: false,
+  })
   const { rules, acknowledgments, loading: rulesLoading } = useRulesData(activeRelationship?.id)
   const [assignedToMeOnly, setAssignedToMeOnly] = useState(true)
 
@@ -94,7 +102,9 @@ export function DashboardPage() {
                 {pendingRuleAcks.length > 2 ? '…' : ''}
               </p>
             ) : (
-              <p className="mt-1 text-xs text-emerald-300">All required acknowledgments are up to date.</p>
+              <p className="mt-1 text-xs text-emerald-300">
+                All required acknowledgments are up to date.
+              </p>
             )}
           </div>
 
@@ -135,6 +145,7 @@ export function DashboardPage() {
                   (m) => m.userId === habit.assignedToUserId,
                 )
                 const done = Boolean(completionsOnDate(completions, habit.id, todayKey))
+                const missed = hasHabitMissPunishment(history, habit.id, todayKey)
                 const streak = computeStreak(habit, completions)
                 const weekProgress =
                   habit.frequency.type === 'weeklyCount'
@@ -161,7 +172,7 @@ export function DashboardPage() {
                           habitId: habit.id,
                           userId: user.id,
                           completed: !done,
-                        }).then(refresh)
+                        }).then(() => Promise.all([refresh(), refreshRewards()]))
                       }}
                     >
                       ✓
@@ -177,11 +188,20 @@ export function DashboardPage() {
                         <p
                           className={[
                             'truncate text-sm',
-                            done ? 'text-stone-500 line-through' : 'text-stone-100',
+                            done
+                              ? 'text-stone-500 line-through'
+                              : missed
+                                ? 'text-rose-300'
+                                : 'text-stone-100',
                           ].join(' ')}
                         >
                           {habit.title}
                         </p>
+                        {missed && !done ? (
+                          <span className="text-[10px] uppercase tracking-wide text-rose-400">
+                            Missed
+                          </span>
+                        ) : null}
                       </div>
                       <p className="mt-0.5 text-xs text-stone-500">
                         {formatFrequency(habit.frequency)}
@@ -193,6 +213,28 @@ export function DashboardPage() {
                         {streak > 0 ? ` · streak ${streak}` : null}
                       </p>
                     </div>
+                    {habit.linkedPunishmentId && !done ? (
+                      <button
+                        type="button"
+                        className={[
+                          'shrink-0 rounded-md border px-2 py-1 text-[11px]',
+                          missed
+                            ? 'border-rose-700 text-rose-300'
+                            : 'border-stone-600 text-stone-400 hover:border-rose-500 hover:text-rose-300',
+                        ].join(' ')}
+                        onClick={() => {
+                          if (missed) return
+                          void markHabitMissedForDate({
+                            relationshipId: activeRelationship.id,
+                            habitId: habit.id,
+                            userId: user.id,
+                            missedOn: todayKey,
+                          }).then(refreshRewards)
+                        }}
+                      >
+                        {missed ? 'Missed' : 'Miss'}
+                      </button>
+                    ) : null}
                   </li>
                 )
               })}

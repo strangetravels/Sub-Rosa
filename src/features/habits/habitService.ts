@@ -11,7 +11,9 @@ import {
 } from 'firebase/firestore'
 import { getFirebaseDb } from '@/lib/firebase/app'
 import {
+  applyAutoPunishmentForHabitMiss,
   applyAutoRewardForHabitCompletion,
+  removeAutoPunishmentForHabitMiss,
   removeAutoRewardForHabitCompletion,
 } from '@/features/rewards/rewardService'
 import { isDemoMode } from '@/lib/firebase/config'
@@ -351,6 +353,11 @@ export async function setHabitCompletedForDate(input: {
     })
     notifyDemoHabitsChanged()
     if (input.completed && result) {
+      await removeAutoPunishmentForHabitMiss({
+        relationshipId: input.relationshipId,
+        habitId: input.habitId,
+        occurrenceKey: completedOn,
+      })
       await applyAutoRewardForHabitCompletion({
         habit,
         completedOn,
@@ -384,6 +391,11 @@ export async function setHabitCompletedForDate(input: {
       createdAt: new Date().toISOString(),
     }
     await setDoc(doc(col, completion.id), completion)
+    await removeAutoPunishmentForHabitMiss({
+      relationshipId: input.relationshipId,
+      habitId: input.habitId,
+      occurrenceKey: completedOn,
+    })
     await applyAutoRewardForHabitCompletion({
       habit,
       completedOn,
@@ -399,6 +411,38 @@ export async function setHabitCompletedForDate(input: {
     occurrenceKey: completedOn,
   })
   return null
+}
+
+/** Log a miss for a due habit and apply its linked punishment (idempotent per date). */
+export async function markHabitMissedForDate(input: {
+  relationshipId: string
+  habitId: string
+  userId: string
+  missedOn?: string
+}): Promise<void> {
+  const missedOn = input.missedOn ?? toLocalDateKey()
+  const habit = await getHabitById(input.relationshipId, input.habitId)
+  if (!habit.linkedPunishmentId) {
+    throw new Error('This habit has no linked punishment.')
+  }
+  await applyAutoPunishmentForHabitMiss({
+    habit,
+    missedOn,
+    appliedByUserId: input.userId,
+  })
+}
+
+export async function clearHabitMissForDate(input: {
+  relationshipId: string
+  habitId: string
+  missedOn?: string
+}): Promise<void> {
+  const missedOn = input.missedOn ?? toLocalDateKey()
+  await removeAutoPunishmentForHabitMiss({
+    relationshipId: input.relationshipId,
+    habitId: input.habitId,
+    occurrenceKey: missedOn,
+  })
 }
 
 export async function getHabitById(

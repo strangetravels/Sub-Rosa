@@ -43,5 +43,16 @@ describe('RewardsPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/Reward: Extra tea/)).toBeInTheDocument()
     })
+
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    await waitFor(() => {
+      expect(screen.queryByText('Extra tea')).not.toBeInTheDocument()
+    })
+
+    await user.click(screen.getByLabelText('Show archived'))
+    await waitFor(() => {
+      expect(screen.getByText('Extra tea')).toBeInTheDocument()
+      expect(screen.getByText('Archived')).toBeInTheDocument()
+    })
   })
 })

@@ -509,6 +509,34 @@ export async function applyPunishmentManually(input: {
   })
 }
 
+export async function archiveReward(
+  relationshipId: string,
+  rewardId: string,
+): Promise<Reward> {
+  return updateReward(relationshipId, rewardId, { status: 'archived' })
+}
+
+export async function restoreReward(
+  relationshipId: string,
+  rewardId: string,
+): Promise<Reward> {
+  return updateReward(relationshipId, rewardId, { status: 'active' })
+}
+
+export async function archivePunishment(
+  relationshipId: string,
+  punishmentId: string,
+): Promise<Punishment> {
+  return updatePunishment(relationshipId, punishmentId, { status: 'archived' })
+}
+
+export async function restorePunishment(
+  relationshipId: string,
+  punishmentId: string,
+): Promise<Punishment> {
+  return updatePunishment(relationshipId, punishmentId, { status: 'active' })
+}
+
 export async function applyAutoRewardForHabitCompletion(input: {
   habit: Habit
   completedOn: string
@@ -547,6 +575,78 @@ export async function removeAutoRewardForHabitCompletion(input: {
   habitId: string
   occurrenceKey: string
 }): Promise<void> {
+  await removeCatalogHistoryBySource({
+    ...input,
+    source: 'habit_completion',
+  })
+}
+
+export async function applyAutoPunishmentForHabitMiss(input: {
+  habit: Habit
+  missedOn: string
+  appliedByUserId: string
+}): Promise<void> {
+  if (!input.habit.linkedPunishmentId) return
+  const existing = await listCatalogHistory(input.habit.relationshipId)
+  if (
+    existing.some(
+      (entry) =>
+        entry.source === 'habit_punishment' &&
+        entry.habitId === input.habit.id &&
+        entry.occurrenceKey === input.missedOn &&
+        entry.itemId === input.habit.linkedPunishmentId,
+    )
+  ) {
+    return
+  }
+  const punishment = await getStoredPunishment(
+    input.habit.relationshipId,
+    input.habit.linkedPunishmentId,
+  )
+  await createHistoryEntry({
+    relationshipId: input.habit.relationshipId,
+    itemType: 'punishment',
+    itemId: punishment.id,
+    itemTitle: punishment.title,
+    source: 'habit_punishment',
+    targetUserId: input.habit.assignedToUserId,
+    appliedByUserId: input.appliedByUserId,
+    note: `Auto-applied for missing ${input.habit.title}`,
+    habitId: input.habit.id,
+    occurrenceKey: input.missedOn,
+  })
+}
+
+export async function removeAutoPunishmentForHabitMiss(input: {
+  relationshipId: string
+  habitId: string
+  occurrenceKey: string
+}): Promise<void> {
+  await removeCatalogHistoryBySource({
+    ...input,
+    source: 'habit_punishment',
+  })
+}
+
+export function hasHabitMissPunishment(
+  history: CatalogHistoryEntry[],
+  habitId: string,
+  occurrenceKey: string,
+): boolean {
+  return history.some(
+    (entry) =>
+      entry.source === 'habit_punishment' &&
+      entry.habitId === habitId &&
+      entry.occurrenceKey === occurrenceKey,
+  )
+}
+
+async function removeCatalogHistoryBySource(input: {
+  relationshipId: string
+  habitId: string
+  occurrenceKey: string
+  source: 'habit_completion' | 'habit_punishment'
+}): Promise<void> {
   if (isDemoMode()) {
     updateDemoState((state) => ({
       ...state,
@@ -554,7 +654,7 @@ export async function removeAutoRewardForHabitCompletion(input: {
         (entry) =>
           !(
             entry.relationshipId === input.relationshipId &&
-            entry.source === 'habit_completion' &&
+            entry.source === input.source &&
             entry.habitId === input.habitId &&
             entry.occurrenceKey === input.occurrenceKey
           ),
@@ -568,7 +668,7 @@ export async function removeAutoRewardForHabitCompletion(input: {
   const snap = await getDocs(
     query(
       collection(db, 'relationships', input.relationshipId, 'catalogHistory'),
-      where('source', '==', 'habit_completion'),
+      where('source', '==', input.source),
       where('habitId', '==', input.habitId),
       where('occurrenceKey', '==', input.occurrenceKey),
     ),
