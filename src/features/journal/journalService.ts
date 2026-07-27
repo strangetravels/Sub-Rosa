@@ -156,6 +156,17 @@ export async function createJournalEntry(
     dateKey: toLocalDateKey(),
   })
 
+  if (input.visibility === 'shared') {
+    const { notifySharedJournalEntry } = await import(
+      '@/features/notifications/notificationService'
+    )
+    await notifySharedJournalEntry({
+      relationshipId: input.relationshipId,
+      authorUserId: input.authorUserId,
+      title,
+    })
+  }
+
   return hydrateBody(input.relationshipId, entry)
 }
 

@@ -11,6 +11,7 @@ Private habit and task tracking for consensual dominant/submissive (D/s) relatio
 - **Journal** — private or shared encrypted entries, daily rotating prompts, custom prompts, partner-assigned prompts, tags/date/search filters, streak + daily points
 - **Chat** — real-time encrypted messaging per relationship, journal attachment (both directions), typing indicator, search, read receipts, unread badge
 - **Stats** — habit/points/journal charts with day/week/month rollups, per-habit & per-member breakdowns (relationship members only), CSV export
+- **Notifications** — in-app inbox, preference toggles, habit reminders, event alerts (complete/miss, shared journal, chat, daily prompt), browser/FCM push opt-in
 - **Multi-partner** — fully separate data per relationship, with a workspace-style switcher
 
 ## Principles
@@ -56,7 +57,8 @@ If rule, reward, or punishment text was stored encrypted and the device key is l
 | Journal entries, prompts, streaks, encryption | Done |
 | Chat messages, encryption, journal attach, read receipts | Done |
 | Stats: habit/points/journal charts, rewards & violations | Done |
-| FCM / safety UI | Not yet |
+| Notifications: inbox, prefs, reminders, event hooks, push opt-in | Done |
+| Safety UI | Not yet |
 
 ## Roadmap
 

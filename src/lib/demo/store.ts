@@ -1,12 +1,15 @@
 import type {
+  AppNotification,
   CatalogHistoryEntry,
   ChatMessage,
   ChatTypingPresence,
   Habit,
   HabitCategory,
   HabitCompletion,
+  HabitReminder,
   JournalEntry,
   JournalPrompt,
+  NotificationPreferences,
   PointsLedgerEntry,
   Punishment,
   Reward,
@@ -47,6 +50,9 @@ export type DemoState = {
   journalPrompts: JournalPrompt[]
   chatMessages: ChatMessage[]
   chatTyping: ChatTypingPresence[]
+  notificationPreferences: NotificationPreferences[]
+  notifications: AppNotification[]
+  habitReminders: HabitReminder[]
 }
 
 function emptyState(): DemoState {
@@ -71,6 +77,9 @@ function emptyState(): DemoState {
     journalPrompts: [],
     chatMessages: [],
     chatTyping: [],
+    notificationPreferences: [],
+    notifications: [],
+    habitReminders: [],
   }
 }
 

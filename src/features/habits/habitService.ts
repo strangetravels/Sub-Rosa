@@ -20,6 +20,10 @@ import {
   applyHabitCompletionPoints,
   removeHabitCompletionPoints,
 } from '@/features/points/pointService'
+import {
+  notifyHabitCompleted,
+  notifyHabitMissed,
+} from '@/features/notifications/notificationService'
 import { isDemoMode } from '@/lib/firebase/config'
 import { createId } from '@/lib/id'
 import { readDemoState, updateDemoState } from '@/lib/demo/store'
@@ -389,6 +393,11 @@ export async function setHabitCompletedForDate(input: {
         completedOn,
         appliedByUserId: input.userId,
       })
+      await notifyHabitCompleted({
+        relationshipId: input.relationshipId,
+        habit,
+        actorUserId: input.userId,
+      })
     } else if (!input.completed) {
       await removeAutoRewardForHabitCompletion({
         relationshipId: input.relationshipId,
@@ -437,6 +446,11 @@ export async function setHabitCompletedForDate(input: {
       completedOn,
       appliedByUserId: input.userId,
     })
+    await notifyHabitCompleted({
+      relationshipId: input.relationshipId,
+      habit,
+      actorUserId: input.userId,
+    })
     return completion
   }
 
@@ -470,6 +484,11 @@ export async function markHabitMissedForDate(input: {
     habit,
     missedOn,
     appliedByUserId: input.userId,
+  })
+  await notifyHabitMissed({
+    relationshipId: input.relationshipId,
+    habit,
+    actorUserId: input.userId,
   })
 }
 

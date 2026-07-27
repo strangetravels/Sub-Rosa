@@ -24,6 +24,9 @@ describe('demo store', () => {
       journalPrompts: [],
       chatMessages: [],
       chatTyping: [],
+      notificationPreferences: [],
+      notifications: [],
+      habitReminders: [],
     })
   })
 

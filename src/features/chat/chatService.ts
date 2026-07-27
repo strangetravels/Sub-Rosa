@@ -126,12 +126,19 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Chat
       chatMessages: [...state.chatMessages, message],
     }))
     notifyDemoChatChanged()
-    return hydrateMessage(message)
+  } else {
+    const db = getFirebaseDb()
+    if (!db) throw new Error('Firestore is not configured.')
+    await setDoc(doc(db, 'relationships', input.relationshipId, 'chatMessages', message.id), message)
   }
 
-  const db = getFirebaseDb()
-  if (!db) throw new Error('Firestore is not configured.')
-  await setDoc(doc(db, 'relationships', input.relationshipId, 'chatMessages', message.id), message)
+  const { notifyChatMessage } = await import('@/features/notifications/notificationService')
+  await notifyChatMessage({
+    relationshipId: input.relationshipId,
+    senderUserId: input.senderUserId,
+    preview: bodyText || input.journalEntry?.title || 'New message',
+  })
+
   return hydrateMessage(message)
 }
 
