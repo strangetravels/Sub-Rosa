@@ -79,3 +79,11 @@ Environment variables are documented in [`.env.example`](.env.example). Without 
 ## Privacy
 
 This app stores highly sensitive personal data. Do not log plaintext journal or chat content in crash reporting, analytics, or server logs. Prefer ciphertext-only server paths if Cloud Functions are added later.
+
+## License
+
+Copyright (C) 2026 strangetravels
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, version 3.
+
+See [LICENSE](LICENSE) for the full GNU AGPL v3 text.
